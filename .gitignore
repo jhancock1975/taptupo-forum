@@ -1,1 +1,64 @@
 .env
+.env.*
+.env~
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Coding agent artifacts
+.claude/
+.cursor/
+.aider*
+.github-copilot/
+CLAUDE.local.md
+.google-ai/
+.openai/
+.codeium/
+.codex
+
+# Editor backups
+*~
+*.swp
+*.swo
+.#*
+\#*#
+*.bak
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.sublime-*
+.project
+.settings/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+*.egg-info/
+venv/
+.venv/
+
+# Logs
+*.log
+logs/
+log/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
+
+# Worktrees
+.worktrees/
