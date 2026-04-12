@@ -1,0 +1,11 @@
+# Bandit configuration — Python security static analysis.
+# Run with: `uv run bandit -c quality/static/bandit.yml -r app`
+
+exclude_dirs:
+  - tests
+  - .venv
+  - .worktrees
+  - quality/dynamic/fuzzing
+
+skips:
+  - B101  # assert_used — tests rely on assert
