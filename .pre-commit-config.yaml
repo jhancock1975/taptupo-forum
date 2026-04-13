@@ -32,6 +32,10 @@ repos:
           - "structlog>=24.0"
           - "fastapi>=0.115"
           - "starlette>=0.40"
+          - "itsdangerous>=2.2"
+          - "types-passlib"
+          - "aioboto3>=14.0"
+          - "botocore>=1.35"
         args: ["--strict"]
         files: ^app/
         exclude: ^tests/

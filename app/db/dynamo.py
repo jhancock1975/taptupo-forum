@@ -27,8 +27,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-import aioboto3  # type: ignore[import-untyped]
-from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+import aioboto3  # type: ignore[import-untyped,import-not-found,unused-ignore]
+from botocore.exceptions import (  # type: ignore[import-untyped,import-not-found,unused-ignore]
+    ClientError,
+)
 
 from app.db.interface import RepositoryInterface, UserExistsError
 from app.models import NewsItem, Post, Thread, User
