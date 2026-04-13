@@ -10,6 +10,7 @@ dependencies = [
     "aioboto3>=15.5.0",
     "arxiv>=2.4.1",
     "boto3>=1.40.61",
+    "defusedxml>=0.7.1",
     "fastapi>=0.135.3",
     "feedparser>=6.0.12",
     "httpx>=0.28.1",

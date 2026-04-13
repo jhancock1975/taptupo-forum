@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/2604.00001v1</id>
+    <title>Scaling laws for emergent reasoning</title>
+    <summary>We study emergent reasoning in large models.</summary>
+    <link href="http://arxiv.org/abs/2604.00001v1" rel="alternate" type="text/html"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2604.00002v1</id>
+    <title>Quantum advantage in noisy regimes</title>
+    <summary>A new benchmark for NISQ-era devices.</summary>
+    <link href="http://arxiv.org/abs/2604.00002v1" rel="alternate" type="text/html"/>
+  </entry>
+</feed>

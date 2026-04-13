@@ -1,0 +1,26 @@
+{
+  "data": {
+    "children": [
+      {
+        "kind": "t3",
+        "data": {
+          "title": "Interesting thread about transformers",
+          "url": "https://reddit.com/r/MachineLearning/comments/abc/xyz",
+          "selftext": "Some detailed thoughts about attention.",
+          "permalink": "/r/MachineLearning/comments/abc/xyz",
+          "is_self": true
+        }
+      },
+      {
+        "kind": "t3",
+        "data": {
+          "title": "Link to a new paper",
+          "url": "https://arxiv.org/abs/2604.00003",
+          "selftext": "",
+          "permalink": "/r/MachineLearning/comments/def/paper",
+          "is_self": false
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "totalResults": 2,
+  "articles": [
+    {
+      "source": {"name": "Wired"},
+      "title": "The chip wars enter a new phase",
+      "url": "https://www.wired.com/story/chip-wars",
+      "description": "TSMC, ASML, and the race for 2nm."
+    },
+    {
+      "source": {"name": "Ars Technica"},
+      "title": "Europa mission confirms sub-surface ocean",
+      "url": "https://arstechnica.com/science/europa",
+      "description": "Data from the orbiter is in."
+    }
+  ]
+}
