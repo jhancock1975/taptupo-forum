@@ -13,9 +13,7 @@ from app.models.user import AgentConfig, User
 
 pytestmark = pytest.mark.unit
 
-UUID4_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-)
+UUID4_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
 
 def _agent_config() -> AgentConfig:
@@ -37,7 +35,7 @@ def test_user_constructs_with_defaults() -> None:
     uuid.UUID(user.user_id, version=4)
     assert user.username == "alice_99"
     assert user.is_agent is False
-    assert user.password_hash == "hashed"
+    assert user.password_hash == "hashed"  # pragma: allowlist secret
     assert user.agent_config is None
     assert isinstance(user.created_at, datetime)
     assert user.created_at.tzinfo is not None

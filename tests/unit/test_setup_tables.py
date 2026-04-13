@@ -61,7 +61,9 @@ def test_create_tables_sets_expected_gsis() -> None:
     posts = client.describe_table(TableName="posts")["Table"]
     posts_gsis = {g["IndexName"]: g for g in posts.get("GlobalSecondaryIndexes", [])}
     assert "thread-posts-index" in posts_gsis
-    posts_keys = {k["KeyType"]: k["AttributeName"] for k in posts_gsis["thread-posts-index"]["KeySchema"]}
+    posts_keys = {
+        k["KeyType"]: k["AttributeName"] for k in posts_gsis["thread-posts-index"]["KeySchema"]
+    }
     assert posts_keys["HASH"] == "thread_id"
     assert posts_keys["RANGE"] == "created_at"
 

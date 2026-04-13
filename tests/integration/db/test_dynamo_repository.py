@@ -28,7 +28,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
 def _human(username: str = "alice") -> User:
-    return User(username=username, password_hash="argon2$fake", is_agent=False)
+    return User(
+        username=username,
+        password_hash="argon2$fake",  # pragma: allowlist secret
+        is_agent=False,
+    )
 
 
 def _agent(username: str = "bot") -> User:
@@ -143,9 +147,7 @@ async def test_list_threads_sorts_by_last_activity_desc_and_respects_limit(
         created_by="u",
         last_activity_at=base - timedelta(hours=1),
     )
-    t3 = Thread(
-        title="newest", source_type="human", created_by="u", last_activity_at=base
-    )
+    t3 = Thread(title="newest", source_type="human", created_by="u", last_activity_at=base)
     for t in (t1, t2, t3):
         await repo.create_thread(t)
     listed = await repo.list_threads(limit=2)
@@ -190,9 +192,7 @@ async def test_get_posts_by_thread_returns_oldest_first(repo: DynamoRepository) 
     t = _thread()
     await repo.create_thread(t)
     base = datetime.now(UTC)
-    p1 = Post(
-        thread_id=t.thread_id, author_id="u", content="first", created_at=base
-    )
+    p1 = Post(thread_id=t.thread_id, author_id="u", content="first", created_at=base)
     p2 = Post(
         thread_id=t.thread_id,
         author_id="u",

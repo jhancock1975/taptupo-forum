@@ -11,9 +11,7 @@ from app.models.news_item import NewsItem
 pytestmark = pytest.mark.hypothesis
 
 
-sources = st.sampled_from(
-    ["guardian", "arxiv", "hackernews", "reddit", "newsapi", "rss"]
-)
+sources = st.sampled_from(["guardian", "arxiv", "hackernews", "reddit", "newsapi", "rss"])
 statuses = st.sampled_from(["new", "promoted", "skipped"])
 
 
@@ -25,9 +23,7 @@ def news_items(draw: st.DrawFn) -> NewsItem:
         url=draw(st.text(min_size=1, max_size=200)),
         raw_content=draw(st.text(max_size=1000)),
         status=draw(statuses),
-        promoted_thread_id=draw(
-            st.one_of(st.none(), st.text(min_size=1, max_size=50))
-        ),
+        promoted_thread_id=draw(st.one_of(st.none(), st.text(min_size=1, max_size=50))),
     )
 
 

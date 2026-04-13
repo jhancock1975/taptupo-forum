@@ -8,9 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-NewsSource = Literal[
-    "guardian", "arxiv", "hackernews", "reddit", "newsapi", "rss"
-]
+NewsSource = Literal["guardian", "arxiv", "hackernews", "reddit", "newsapi", "rss"]
 NewsStatus = Literal["new", "promoted", "skipped"]
 
 

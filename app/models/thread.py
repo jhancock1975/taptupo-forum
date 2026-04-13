@@ -8,9 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SourceType = Literal[
-    "guardian", "arxiv", "hackernews", "reddit", "newsapi", "rss", "human"
-]
+SourceType = Literal["guardian", "arxiv", "hackernews", "reddit", "newsapi", "rss", "human"]
 
 
 class Thread(BaseModel):

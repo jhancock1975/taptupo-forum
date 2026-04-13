@@ -16,9 +16,7 @@ from typing import TextIO
 import structlog
 
 
-def configure_logging(
-    *, stream: TextIO | None = None, level: int = logging.INFO
-) -> None:
+def configure_logging(*, stream: TextIO | None = None, level: int = logging.INFO) -> None:
     """Configure the stdlib ``logging`` and ``structlog`` stacks to emit JSON.
 
     Parameters

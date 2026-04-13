@@ -28,6 +28,10 @@ repos:
       - id: mypy
         additional_dependencies:
           - "pydantic>=2.12"
+          - "pydantic-settings>=2.0"
+          - "structlog>=24.0"
+          - "fastapi>=0.115"
+          - "starlette>=0.40"
         args: ["--strict"]
         files: ^app/
         exclude: ^tests/
@@ -55,7 +59,10 @@ repos:
         stages: [pre-commit]
       - id: safety-deps
         name: safety dependency CVE scan
-        entry: uv run safety check --bare
+        # Ignore 88512: langchain<1.2.24 advisory flags a JS subpackage
+        # (@langchain/google-cloud-sql-pg) that we do not install; 1.2.24 is
+        # not yet published on PyPI. Revisit when upstream fix lands.
+        entry: uv run safety check --bare --ignore 88512
         language: system
         pass_filenames: false
         stages: [pre-commit]
