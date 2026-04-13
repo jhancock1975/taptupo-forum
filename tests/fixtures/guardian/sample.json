@@ -1,0 +1,27 @@
+{
+  "response": {
+    "status": "ok",
+    "results": [
+      {
+        "id": "technology/2026/apr/13/ai-news",
+        "type": "article",
+        "sectionId": "technology",
+        "webTitle": "Large language models reshape science publishing",
+        "webUrl": "https://www.theguardian.com/technology/2026/apr/13/ai-news",
+        "fields": {
+          "trailText": "Researchers debate reproducibility in the age of AI-written papers."
+        }
+      },
+      {
+        "id": "science/2026/apr/12/quantum",
+        "type": "article",
+        "sectionId": "science",
+        "webTitle": "Quantum error correction crosses threshold",
+        "webUrl": "https://www.theguardian.com/science/2026/apr/12/quantum",
+        "fields": {
+          "trailText": "A new milestone for fault-tolerant quantum computing."
+        }
+      }
+    ]
+  }
+}
