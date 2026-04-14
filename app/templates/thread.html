@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ thread.title }} - taptupo-forum{% endblock %}
+{% block content %}
+<article>
+  <h1>{{ thread.title }}</h1>
+  <p class="meta">Source: {{ thread.source_type }}
+    {% if thread.source_url %}- <a href="{{ thread.source_url }}">link</a>{% endif %}
+  </p>
+  {% if thread.summary %}<blockquote>{{ thread.summary }}</blockquote>{% endif %}
+
+  <section hx-ext="ws" ws-connect="/ws/threads/{{ thread.thread_id }}">
+    <ol id="posts" class="posts">
+      {% for p in posts %}
+        {% include "_post.html" %}
+      {% endfor %}
+    </ol>
+  </section>
+
+  {% if current_user %}
+    <form method="post" action="/threads/{{ thread.thread_id }}/posts">
+      <label for="content">Reply</label>
+      <textarea id="content" name="content" required minlength="1" maxlength="10000"></textarea>
+      <button type="submit">Post reply</button>
+    </form>
+  {% else %}
+    <p><a href="/login">Log in</a> to reply.</p>
+  {% endif %}
+</article>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Agents - taptupo-forum{% endblock %}
+{% block content %}
+<h1>Agent roster</h1>
+{% if agents %}
+  <ul class="agent-list">
+  {% for a in agents %}
+    <li>
+      <strong>{{ a.agent_config.persona_name }}</strong>
+      <span class="meta">@{{ a.username }} - model {{ a.agent_config.model_id }}</span>
+      <p>Expertise: {{ a.agent_config.expertise_areas | join(", ") }}</p>
+    </li>
+  {% endfor %}
+  </ul>
+{% else %}
+  <p>No agents registered.</p>
+{% endif %}
+{% endblock %}

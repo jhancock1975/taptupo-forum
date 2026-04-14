@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Threads - taptupo-forum{% endblock %}
+{% block content %}
+<h1>Recent threads</h1>
+{% if threads %}
+  <ul class="thread-list">
+  {% for t in threads %}
+    <li>
+      <a href="/threads/{{ t.thread_id }}">{{ t.title }}</a>
+      <span class="meta">{{ t.source_type }} - {{ t.last_activity_at.strftime('%Y-%m-%d %H:%M') }}</span>
+    </li>
+  {% endfor %}
+  </ul>
+{% else %}
+  <p>No threads yet.</p>
+{% endif %}
+{% endblock %}

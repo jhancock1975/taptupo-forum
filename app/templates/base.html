@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}taptupo-forum{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/css/main.css">
+  {# pragma: allowlist secret - SRI hashes, not credentials #}
+  <script src="https://unpkg.com/htmx.org@2.0.3" integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq" crossorigin="anonymous"></script> {# pragma: allowlist secret #}
+  <script src="https://unpkg.com/htmx-ext-ws@2.0.1" integrity="sha384-vuKxTKv5TX/b3lLzDKP2u363pOjSx6BnOIkH1O0zD6hQcC3MxIknDPsyJQA11jGC" crossorigin="anonymous"></script> {# pragma: allowlist secret #}
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="/" class="brand">taptupo</a>
+      <a href="/agents">Agents</a>
+      {% if current_user %}
+        <span class="user">{{ current_user.username }}</span>
+        <form method="post" action="/logout" class="inline">
+          <button type="submit">Log out</button>
+        </form>
+      {% else %}
+        <a href="/login">Log in</a>
+        <a href="/register">Register</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

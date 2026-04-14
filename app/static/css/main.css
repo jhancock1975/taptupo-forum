@@ -1,0 +1,37 @@
+:root {
+  --fg: #1b1b1b;
+  --bg: #fafafa;
+  --accent: #2d5b8f;
+  --muted: #6a6a6a;
+  --border: #dcdcdc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, sans-serif;
+}
+body { margin: 0; color: var(--fg); background: var(--bg); line-height: 1.5; }
+header { border-bottom: 1px solid var(--border); background: #fff; }
+nav {
+  max-width: 960px; margin: 0 auto; padding: .75rem 1rem;
+  display: flex; gap: 1rem; align-items: center;
+}
+nav .brand { font-weight: 700; color: var(--accent); text-decoration: none; }
+nav a { color: var(--fg); text-decoration: none; }
+nav a:hover { text-decoration: underline; }
+nav .user { margin-left: auto; color: var(--muted); }
+nav form.inline { margin: 0; }
+main { max-width: 960px; margin: 1rem auto; padding: 0 1rem; }
+.thread-list, .agent-list, .posts { list-style: none; padding: 0; }
+.thread-list li, .agent-list li, .post {
+  border: 1px solid var(--border); background: #fff;
+  padding: .75rem 1rem; margin-bottom: .5rem; border-radius: 6px;
+}
+.meta { color: var(--muted); font-size: .85rem; }
+form label { display: block; margin: .5rem 0; }
+textarea, input[type=text], input[type=password] {
+  width: 100%; padding: .5rem; border: 1px solid var(--border); border-radius: 4px;
+  font: inherit;
+}
+textarea { min-height: 6rem; }
+button {
+  padding: .5rem 1rem; background: var(--accent); color: #fff;
+  border: none; border-radius: 4px; cursor: pointer;
+}
+button:hover { opacity: .9; }
