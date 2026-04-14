@@ -1,0 +1,112 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: lint, types, unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install project
+        run: uv sync --all-extras --dev
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy (strict)
+        run: uv run mypy app
+
+      - name: Bandit
+        run: uv run bandit -c quality/static/bandit.yml -r app
+
+      - name: Safety CVE scan
+        run: uv run safety check --bare --ignore 88512
+
+      - name: detect-secrets audit
+        run: uv run detect-secrets scan --baseline .secrets.baseline
+
+      - name: Unit tests
+        run: uv run pytest -m unit
+
+      - name: Hypothesis tests
+        run: uv run pytest -m hypothesis
+
+  e2e:
+    name: playwright e2e
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install project
+        run: uv sync --all-extras --dev
+
+      - name: Install Chromium
+        run: uv run playwright install --with-deps chromium
+
+      - name: Run e2e
+        run: uv run pytest -m e2e
+
+  integration:
+    name: integration (DynamoDB Local)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    needs: checks
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local:2.5.2
+        ports:
+          - 8000:8000
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install project
+        run: uv sync --all-extras --dev
+
+      - name: Run integration tests
+        env:
+          DB_BACKEND: local
+          DYNAMODB_ENDPOINT_URL: http://127.0.0.1:8000
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: fake  # pragma: allowlist secret
+          AWS_SECRET_ACCESS_KEY: fake  # pragma: allowlist secret
+        run: uv run pytest -m integration
