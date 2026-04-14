@@ -23,12 +23,23 @@ from app.auth.sessions import SessionError, decode_session
 from app.config import Settings
 from app.db.interface import RepositoryInterface
 from app.models import Post
+from app.realtime.broker import Broker
 
 _log = structlog.get_logger(__name__)
 
 
-def create_forum_router(*, repo: RepositoryInterface, settings: Settings) -> APIRouter:
-    """Build an ``APIRouter`` bound to ``repo`` and ``settings``."""
+def create_forum_router(
+    *,
+    repo: RepositoryInterface,
+    settings: Settings,
+    broker: Broker | None = None,
+) -> APIRouter:
+    """Build an ``APIRouter`` bound to ``repo`` and ``settings``.
+
+    When ``broker`` is provided, every successful post creation publishes
+    a ``post.created`` event on topic ``thread_id`` so WebSocket clients
+    subscribed to that thread see the message without polling.
+    """
     router = APIRouter()
 
     def _repo() -> RepositoryInterface:
@@ -116,6 +127,11 @@ def create_forum_router(*, repo: RepositoryInterface, settings: Settings) -> API
             post_id=post.post_id,
             author_id=user_id,
         )
+        if broker is not None:
+            await broker.publish(
+                thread_id,
+                {"type": "post.created", "post": post.model_dump(mode="json")},
+            )
         return RedirectResponse(
             url=f"/threads/{thread_id}",
             status_code=status.HTTP_303_SEE_OTHER,

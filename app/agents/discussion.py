@@ -21,6 +21,7 @@ import structlog
 
 from app.db.interface import RepositoryInterface
 from app.models import Post, User
+from app.realtime.broker import Broker
 
 _log = structlog.get_logger(__name__)
 
@@ -43,12 +44,14 @@ class DiscussionEngine:
         min_delay: float = 30.0,
         max_delay: float = 300.0,
         rng: random.Random | None = None,
+        broker: Broker | None = None,
     ) -> None:
         self._repo = repository
         self._agents = agents
         self._min_delay = min_delay
         self._max_delay = max_delay
         self._rng = rng or random.Random()  # noqa: S311  # nosec B311 — non-crypto use
+        self._broker = broker
 
     async def on_new_post(self, post: Post) -> None:
         """Possibly-schedule replies from each agent to ``post``."""
@@ -75,6 +78,11 @@ class DiscussionEngine:
             )
             await self._repo.create_post(reply)
             await self._repo.update_thread_activity(post.thread_id, reply.created_at)
+            if self._broker is not None:
+                await self._broker.publish(
+                    post.thread_id,
+                    {"type": "post.created", "post": reply.model_dump(mode="json")},
+                )
         except Exception as exc:
             _log.warning(
                 "discussion.agent_failed",
