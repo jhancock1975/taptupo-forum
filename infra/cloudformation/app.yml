@@ -1,0 +1,106 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Placeholder App Runner service for taptupo-forum. Wire up a
+  container image pushed to ECR and the runtime env-vars expected
+  by app/config.py (DB_BACKEND=aws, AWS_REGION, etc.). The DynamoDB
+  tables this service uses are exported from the dynamodb.yml stack.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: Full ECR image URI (repo:tag) to deploy.
+  DatabaseStackName:
+    Type: String
+    Description: Name of the companion DynamoDB CloudFormation stack.
+  SessionSecret:
+    Type: String
+    NoEcho: true
+    Description: Secret used to sign session cookies.
+  OpenRouterApiKey:
+    Type: String
+    NoEcho: true
+    Description: API key for OpenRouter (LLM provider).
+
+Resources:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: dynamodb-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/taptupo-*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/taptupo-*/index/*"
+
+  AccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: build.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
+
+  Service:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: !Sub "taptupo-forum-${AWS::StackName}"
+      SourceConfiguration:
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt AccessRole.Arn
+        ImageRepository:
+          ImageIdentifier: !Ref ImageUri
+          ImageRepositoryType: ECR
+          ImageConfiguration:
+            Port: "8000"
+            RuntimeEnvironmentVariables:
+              - Name: DB_BACKEND
+                Value: aws
+              - Name: AWS_REGION
+                Value: !Ref AWS::Region
+              - Name: SESSION_SECRET
+                Value: !Ref SessionSecret
+              - Name: OPENROUTER_API_KEY
+                Value: !Ref OpenRouterApiKey
+              - Name: LOG_LEVEL
+                Value: info
+        AutoDeploymentsEnabled: true
+      InstanceConfiguration:
+        Cpu: 1 vCPU
+        Memory: 2 GB
+        InstanceRoleArn: !GetAtt InstanceRole.Arn
+      HealthCheckConfiguration:
+        Protocol: HTTP
+        Path: /health
+        HealthyThreshold: 2
+        UnhealthyThreshold: 5
+        Interval: 10
+        Timeout: 5
+
+Outputs:
+  ServiceUrl:
+    Value: !GetAtt Service.ServiceUrl
+    Description: Public HTTPS URL for the running service.

@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  DynamoDB tables for taptupo-forum. On-demand billing keeps the
+  monthly cost near zero for a low-traffic deployment; switch to
+  PROVISIONED if traffic becomes steady enough to forecast.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment environment; used as a table-name suffix.
+
+Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "taptupo-users-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: username
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: username-index
+          KeySchema:
+            - AttributeName: username
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  ThreadsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "taptupo-threads-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: thread_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: thread_id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  PostsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "taptupo-posts-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: post_id
+          AttributeType: S
+        - AttributeName: thread_id
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: post_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: thread-index
+          KeySchema:
+            - AttributeName: thread_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  NewsItemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "taptupo-news-items-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: item_id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: item_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+Outputs:
+  UsersTableName:
+    Value: !Ref UsersTable
+    Export:
+      Name: !Sub "${AWS::StackName}-UsersTableName"
+  ThreadsTableName:
+    Value: !Ref ThreadsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-ThreadsTableName"
+  PostsTableName:
+    Value: !Ref PostsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-PostsTableName"
+  NewsItemsTableName:
+    Value: !Ref NewsItemsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-NewsItemsTableName"
