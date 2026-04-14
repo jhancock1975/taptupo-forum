@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from app.auth.routes import create_auth_router
 from app.config import Settings
 from app.db.factory import get_repository
+from app.forum.routes import create_forum_router
 from app.logging_config import configure_logging
 from app.middleware import CorrelationIdMiddleware
 
@@ -23,6 +24,7 @@ _repo = get_repository()
 app = FastAPI(title="taptupo-forum")
 app.add_middleware(CorrelationIdMiddleware)
 app.include_router(create_auth_router(repo=_repo, settings=_settings))
+app.include_router(create_forum_router(repo=_repo, settings=_settings))
 
 
 @app.get("/health")
