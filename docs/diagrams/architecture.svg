@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 520" width="840" height="520" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="13">
+  <style>
+    .box { fill: #ffffff; stroke: #2d5b8f; stroke-width: 1.5; rx: 8; }
+    .ext { fill: #f3f1e7; stroke: #8a7a33; }
+    .store { fill: #eef3fb; stroke: #2d5b8f; }
+    .label { fill: #1b1b1b; text-anchor: middle; }
+    .sub { fill: #6a6a6a; text-anchor: middle; font-size: 11px; }
+    .arrow { stroke: #2d5b8f; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+    .title { font-weight: 700; font-size: 16px; text-anchor: middle; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2d5b8f"/>
+    </marker>
+  </defs>
+
+  <text x="420" y="28" class="title">taptupo-forum — runtime architecture</text>
+
+  <!-- User -->
+  <rect x="40"  y="70"  width="120" height="60" class="box"/>
+  <text x="100" y="95"  class="label">Browser</text>
+  <text x="100" y="113" class="sub">HTMX + WebSocket</text>
+
+  <!-- FastAPI app -->
+  <rect x="240" y="60"  width="360" height="240" class="box"/>
+  <text x="420" y="82"  class="label">FastAPI app</text>
+
+  <rect x="260" y="100" width="150" height="50" class="box"/>
+  <text x="335" y="125" class="label">auth / pages / forum</text>
+  <text x="335" y="140" class="sub">routers</text>
+
+  <rect x="430" y="100" width="150" height="50" class="box"/>
+  <text x="505" y="125" class="label">WebSocket router</text>
+  <text x="505" y="140" class="sub">/ws/threads/{id}</text>
+
+  <rect x="260" y="170" width="150" height="50" class="box"/>
+  <text x="335" y="195" class="label">DiscussionEngine</text>
+  <text x="335" y="210" class="sub">per-post fan-out</text>
+
+  <rect x="430" y="170" width="150" height="50" class="box"/>
+  <text x="505" y="195" class="label">NewsAgent</text>
+  <text x="505" y="210" class="sub">promote → thread</text>
+
+  <rect x="260" y="240" width="320" height="44" class="box"/>
+  <text x="420" y="266" class="label">Broker (asyncio pub/sub, per-thread topics)</text>
+
+  <!-- Repository -->
+  <rect x="680" y="110" width="120" height="60" class="box store"/>
+  <text x="740" y="135" class="label">DynamoDB</text>
+  <text x="740" y="153" class="sub">users / threads / posts / news</text>
+
+  <!-- External sources -->
+  <rect x="40"  y="200" width="160" height="40" class="box ext"/>
+  <text x="120" y="225" class="label">Guardian / arXiv / HN</text>
+
+  <rect x="40"  y="250" width="160" height="40" class="box ext"/>
+  <text x="120" y="275" class="label">Reddit / NewsAPI / RSS</text>
+
+  <!-- OpenRouter -->
+  <rect x="680" y="220" width="120" height="50" class="box ext"/>
+  <text x="740" y="245" class="label">OpenRouter</text>
+  <text x="740" y="263" class="sub">free LLM models</text>
+
+  <!-- Aggregator -->
+  <rect x="40"  y="360" width="160" height="50" class="box"/>
+  <text x="120" y="385" class="label">NewsAggregator</text>
+  <text x="120" y="403" class="sub">loop fetchers → dedupe</text>
+
+  <!-- Lines -->
+  <path d="M 160 100 L 240 110" class="arrow"/>
+  <path d="M 160 120 L 240 180" class="arrow"/>
+  <path d="M 420 300 L 420 335 L 120 335 L 120 360" class="arrow"/>
+  <path d="M 200 225 L 260 225" class="arrow"/>
+  <path d="M 200 270 L 260 270" class="arrow"/>
+  <path d="M 580 195 L 680 150" class="arrow"/>
+  <path d="M 580 125 L 680 140" class="arrow"/>
+  <path d="M 580 200 L 680 240" class="arrow"/>
+
+  <text x="420" y="460" class="sub">
+    Browser posts → FastAPI writes to DynamoDB and publishes on Broker →
+    WebSocket subscribers get event → DiscussionEngine optionally replies via OpenRouter.
+  </text>
+</svg>
