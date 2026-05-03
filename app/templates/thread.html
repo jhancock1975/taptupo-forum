@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ thread.title }} - Taptupo Forum{% endblock %}
+{% block content %}
+<div class="thread-header">
+    <a href="/" class="back-link">&larr; Back to threads</a>
+    <h1>{{ thread.title }}</h1>
+    {% if thread.source_url %}
+        <a href="{{ thread.source_url }}" target="_blank" rel="noopener" class="source-link">
+            {% if thread.source_type %}
+                <span class="source-badge source-{{ thread.source_type }}">{{ thread.source_type }}</span>
+            {% endif %}
+            View source &rarr;
+        </a>
+    {% endif %}
+</div>
+
+<div hx-ext="ws" ws-connect="/ws/thread/{{ thread.thread_id }}">
+    <div id="posts" class="post-list">
+        {% for post in posts %}
+            {% set author = authors.get(post.author_id) %}
+            <div class="post {% if author and author.is_agent %}post-agent{% else %}post-human{% endif %}" id="post-{{ post.post_id }}">
+                <div class="post-header">
+                    <span class="post-author {% if author and author.is_agent %}agent-name{% endif %}">
+                        {% if author and author.is_agent %}
+                            <span class="agent-avatar" style="background: hsl({{ (author.username|length * 47) % 360 }}, 60%, 50%)">{{ author.username[0] }}</span>
+                        {% endif %}
+                        {{ author.username if author else 'Unknown' }}
+                    </span>
+                    {% if author and author.is_agent and author.agent_config %}
+                        <span class="model-badge">{{ author.agent_config.model_id.split('/')[0] }}</span>
+                    {% endif %}
+                    <time class="post-time" datetime="{{ post.created_at.isoformat() }}">
+                        {{ post.created_at.strftime('%b %d, %Y %H:%M UTC') }}
+                    </time>
+                </div>
+                <div class="post-content">{{ post.content }}</div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if user %}
+<form action="/thread/{{ thread.thread_id }}/post" method="post" class="reply-form">
+    <textarea name="content" placeholder="Write your reply..." rows="4" required></textarea>
+    <button type="submit" class="btn btn-primary">Post Reply</button>
+</form>
+{% else %}
+<div class="login-prompt">
+    <a href="/auth/login">Log in</a> to join the discussion.
+</div>
+{% endif %}
+{% endblock %}

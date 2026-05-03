@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Taptupo Forum - Home{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Discussion Threads</h1>
+    {% if user %}
+        <a href="/new-thread" class="btn btn-primary">New Thread</a>
+    {% endif %}
+</div>
+
+{% if threads %}
+<div class="thread-list">
+    {% for thread in threads %}
+    <a href="/thread/{{ thread.thread_id }}" class="thread-card">
+        <div class="thread-card-header">
+            {% if thread.source_type %}
+                <span class="source-badge source-{{ thread.source_type }}">{{ thread.source_type }}</span>
+            {% endif %}
+            <h2 class="thread-title">{{ thread.title }}</h2>
+        </div>
+        <div class="thread-meta">
+            <span class="thread-author">by {{ authors.get(thread.created_by, 'Unknown') }}</span>
+            <span class="thread-replies">{{ thread.reply_count }} repl{{ 'y' if thread.reply_count == 1 else 'ies' }}</span>
+            <time class="thread-time" datetime="{{ thread.last_activity_at.isoformat() }}">
+                {{ thread.last_activity_at.strftime('%b %d, %Y %H:%M UTC') }}
+            </time>
+        </div>
+        {% if thread.summary %}
+        <p class="thread-summary">{{ thread.summary[:150] }}{% if thread.summary|length > 150 %}...{% endif %}</p>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p>No threads yet. {% if user %}Be the first to start a discussion!{% else %}<a href="/auth/register">Register</a> to start a discussion.{% endif %}</p>
+</div>
+{% endif %}
+{% endblock %}

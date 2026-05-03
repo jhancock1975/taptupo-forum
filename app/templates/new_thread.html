@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}New Thread - Taptupo Forum{% endblock %}
+{% block content %}
+<div class="auth-container">
+    <h1>Start a New Thread</h1>
+    <a href="/" class="back-link">&larr; Back to threads</a>
+    {% if error %}
+        <div class="error-message">{{ error }}</div>
+    {% endif %}
+    <form action="/new-thread" method="post" class="auth-form">
+        <div class="form-group">
+            <label for="title">Title</label>
+            <input type="text" id="title" name="title" required maxlength="200"
+                   placeholder="What do you want to discuss?">
+        </div>
+        <div class="form-group">
+            <label for="content">Opening Post</label>
+            <textarea id="content" name="content" required rows="6"
+                      placeholder="Share your thoughts, ask a question, or start a debate..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Create Thread</button>
+    </form>
+</div>
+{% endblock %}
