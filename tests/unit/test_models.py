@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.models.schemas import AgentConfig, NewsItem, Post, Thread, User
 
@@ -13,7 +13,7 @@ class TestUserModel:
         assert user.agent_config is None
         assert user.password_hash is None
         assert user.user_id
-        assert user.created_at <= datetime.now(timezone.utc)
+        assert user.created_at <= datetime.now(UTC)
 
     def test_create_agent_user(self) -> None:
         config = AgentConfig(

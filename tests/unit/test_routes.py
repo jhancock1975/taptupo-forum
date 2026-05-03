@@ -11,7 +11,11 @@ from app.auth import routes as auth_routes
 from app.auth.utils import create_access_token, decode_access_token, hash_password
 from app.models.schemas import AgentConfig, Post, Thread, User
 from app.routes import threads as thread_routes
-from app.routes.threads import _discovery_status_html, _render_discovery_log, _storage_gauge_svg
+from app.routes.threads import (
+    _discovery_status_html,
+    _render_discovery_log,
+    _storage_gauge_svg,
+)
 
 
 class CapturingTemplates:
@@ -112,7 +116,9 @@ async def test_login_rejects_unknown_or_bad_credentials() -> None:
 @pytest.mark.anyio
 async def test_login_sets_access_token_cookie_for_valid_credentials() -> None:
     user = User(username="alice", password_hash=hash_password("correct horse"))
-    request = FakeRequest(repo=AuthRepo({"alice": user}), templates=CapturingTemplates())
+    request = FakeRequest(
+        repo=AuthRepo({"alice": user}), templates=CapturingTemplates()
+    )
 
     response = await auth_routes.login(  # type: ignore[arg-type]
         request,
@@ -299,7 +305,11 @@ def test_decode_access_token_rejects_missing_claims() -> None:
 
     from app.auth import utils
 
-    token = jwt.encode({"sub": "user-without-name"}, utils.settings.secret_key, algorithm=utils.ALGORITHM)
+    token = jwt.encode(
+        {"sub": "user-without-name"},
+        utils.settings.secret_key,
+        algorithm=utils.ALGORITHM,
+    )
 
     assert decode_access_token(token) is None
 
@@ -309,8 +319,12 @@ async def test_home_renders_threads_with_author_names() -> None:
     repo = ForumRepo()
     alice = User(user_id="u1", username="alice")
     repo.users[alice.user_id] = alice
-    repo.threads["t1"] = Thread(thread_id="t1", title="Welcome", created_by=alice.user_id)
-    repo.threads["t2"] = Thread(thread_id="t2", title="Missing author", created_by="missing")
+    repo.threads["t1"] = Thread(
+        thread_id="t1", title="Welcome", created_by=alice.user_id
+    )
+    repo.threads["t2"] = Thread(
+        thread_id="t2", title="Missing author", created_by="missing"
+    )
     templates = CapturingTemplates()
     request = request_for_forum(repo, token=user_token(alice), templates=templates)
 
@@ -339,7 +353,9 @@ async def test_thread_view_renders_posts_and_authors() -> None:
     alice = User(user_id="u1", username="alice")
     bob = User(user_id="u2", username="bob")
     repo.users = {alice.user_id: alice, bob.user_id: bob}
-    repo.threads["t1"] = Thread(thread_id="t1", title="Welcome", created_by=alice.user_id)
+    repo.threads["t1"] = Thread(
+        thread_id="t1", title="Welcome", created_by=alice.user_id
+    )
     repo.posts["t1"] = [Post(thread_id="t1", author_id=bob.user_id, content="hello")]
     request = request_for_forum(repo, token=user_token(alice))
 
@@ -383,7 +399,9 @@ async def test_create_post_persists_broadcasts_and_triggers_agents() -> None:
     repo = ForumRepo()
     alice = User(user_id="u1", username="alice")
     repo.users[alice.user_id] = alice
-    repo.threads["t1"] = Thread(thread_id="t1", title="Welcome", created_by=alice.user_id)
+    repo.threads["t1"] = Thread(
+        thread_id="t1", title="Welcome", created_by=alice.user_id
+    )
     ws = RecordingWSManager()
     discussion = RecordingDiscussionEngine()
     templates = CapturingTemplates()
@@ -456,7 +474,9 @@ async def test_create_thread_persists_first_post_and_triggers_agents() -> None:
     user = User(user_id="u1", username="alice")
     repo = ForumRepo()
     discussion = RecordingDiscussionEngine()
-    request = request_for_forum(repo, token=user_token(user), discussion_engine=discussion)
+    request = request_for_forum(
+        repo, token=user_token(user), discussion_engine=discussion
+    )
 
     response = await thread_routes.create_thread(  # type: ignore[arg-type]
         request,
@@ -543,7 +563,9 @@ def test_storage_gauge_svg_shows_gb_units_for_large_quota() -> None:
 
 
 def test_storage_gauge_svg_shows_mb_units_for_small_quota() -> None:
-    svg = _storage_gauge_svg(50 * 1024 * 1024, 100 * 1024 * 1024, "db-gauge-svg", "Database")
+    svg = _storage_gauge_svg(
+        50 * 1024 * 1024, 100 * 1024 * 1024, "db-gauge-svg", "Database"
+    )
     assert "MB" in svg
     assert "Database storage:" in svg
 
@@ -552,7 +574,9 @@ def test_storage_gauge_svg_shows_mb_units_for_small_quota() -> None:
 async def test_s3_usage_endpoint_returns_svg(monkeypatch: pytest.MonkeyPatch) -> None:
     import app.storage.s3 as s3_mod
 
-    monkeypatch.setattr(s3_mod, "get_storage_bytes", AsyncMock(return_value=100 * 1024 * 1024))
+    monkeypatch.setattr(
+        s3_mod, "get_storage_bytes", AsyncMock(return_value=100 * 1024 * 1024)
+    )
 
     request = request_for_forum(ForumRepo())
     response = await thread_routes.s3_usage(request)  # type: ignore[arg-type]
@@ -576,7 +600,10 @@ def test_render_discovery_log_models_fetched_event() -> None:
         {
             "ts": "2026-05-02 11:00:00 UTC",
             "event": "models_fetched",
-            "data": {"count": 5, "model_ids": ["openai/gpt-oss-20b:free", "openrouter/optimus-alpha"]},
+            "data": {
+                "count": 5,
+                "model_ids": ["openai/gpt-oss-20b:free", "openrouter/optimus-alpha"],
+            },
         }
     ]
     html = _render_discovery_log(events)
@@ -625,7 +652,11 @@ def test_render_discovery_log_agent_assigned_image_model() -> None:
 
 def test_render_discovery_log_job_complete_event() -> None:
     events = [
-        {"ts": "2026-05-02 11:00:05 UTC", "event": "job_complete", "data": {"updated": 6}}
+        {
+            "ts": "2026-05-02 11:00:05 UTC",
+            "event": "job_complete",
+            "data": {"updated": 6},
+        }
     ]
     html = _render_discovery_log(events)
     assert "6 agents updated" in html
@@ -633,9 +664,7 @@ def test_render_discovery_log_job_complete_event() -> None:
 
 
 def test_render_discovery_log_error_row_class() -> None:
-    events = [
-        {"ts": "2026-05-02 11:00:00 UTC", "event": "fetch_failed", "data": {}}
-    ]
+    events = [{"ts": "2026-05-02 11:00:00 UTC", "event": "fetch_failed", "data": {}}]
     html = _render_discovery_log(events)
     assert "discovery-row-error" in html
 
@@ -656,7 +685,11 @@ def test_render_discovery_log_agent_failed_event() -> None:
 def test_render_discovery_log_newest_first() -> None:
     events = [
         {"ts": "2026-05-02 11:00:00 UTC", "event": "job_started", "data": {}},
-        {"ts": "2026-05-02 11:00:10 UTC", "event": "job_complete", "data": {"updated": 1}},
+        {
+            "ts": "2026-05-02 11:00:10 UTC",
+            "event": "job_complete",
+            "data": {"updated": 1},
+        },
     ]
     html = _render_discovery_log(events)
     # job_complete (newer) should appear before job_started in the output
@@ -664,11 +697,17 @@ def test_render_discovery_log_newest_first() -> None:
 
 
 @pytest.mark.anyio
-async def test_discovery_log_endpoint_returns_html(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_discovery_log_endpoint_returns_html(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from types import SimpleNamespace
 
     log = [
-        {"ts": "2026-05-02 11:00:00 UTC", "event": "job_complete", "data": {"updated": 3}}
+        {
+            "ts": "2026-05-02 11:00:00 UTC",
+            "event": "job_complete",
+            "data": {"updated": 3},
+        }
     ]
 
     request = request_for_forum(ForumRepo())
@@ -705,8 +744,16 @@ def test_discovery_status_idle_when_no_log() -> None:
 def test_discovery_status_ok_after_successful_run() -> None:
     log = [
         {"ts": "2026-05-02 11:00:00 UTC", "event": "job_started", "data": {}},
-        {"ts": "2026-05-02 11:00:01 UTC", "event": "models_fetched", "data": {"count": 12, "model_ids": []}},
-        {"ts": "2026-05-02 11:00:05 UTC", "event": "job_complete", "data": {"updated": 6}},
+        {
+            "ts": "2026-05-02 11:00:01 UTC",
+            "event": "models_fetched",
+            "data": {"count": 12, "model_ids": []},
+        },
+        {
+            "ts": "2026-05-02 11:00:05 UTC",
+            "event": "job_complete",
+            "data": {"updated": 6},
+        },
     ]
     html = _discovery_status_html(log)
     assert "discovery-status-ok" in html
@@ -727,7 +774,11 @@ def test_discovery_status_error_after_fetch_failed() -> None:
 
 def test_discovery_status_running_when_started_not_completed() -> None:
     log = [
-        {"ts": "2026-05-02 11:00:00 UTC", "event": "job_complete", "data": {"updated": 3}},
+        {
+            "ts": "2026-05-02 11:00:00 UTC",
+            "event": "job_complete",
+            "data": {"updated": 3},
+        },
         {"ts": "2026-05-02 11:00:10 UTC", "event": "job_started", "data": {}},
     ]
     html = _discovery_status_html(log)
@@ -740,7 +791,11 @@ async def test_discovery_status_endpoint_returns_html() -> None:
     from types import SimpleNamespace
 
     log = [
-        {"ts": "2026-05-02 11:00:00 UTC", "event": "job_complete", "data": {"updated": 4}},
+        {
+            "ts": "2026-05-02 11:00:00 UTC",
+            "event": "job_complete",
+            "data": {"updated": 4},
+        },
     ]
     request = request_for_forum(ForumRepo())
     request.app = SimpleNamespace(state=SimpleNamespace(discovery_log=log))  # type: ignore[attr-defined]

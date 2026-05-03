@@ -46,7 +46,9 @@ class AgentRepo:
         self.all_threads: list[Thread] = []
 
     async def get_thread(self, thread_id: str) -> Thread | None:
-        return self.thread if self.thread and self.thread.thread_id == thread_id else None
+        return (
+            self.thread if self.thread and self.thread.thread_id == thread_id else None
+        )
 
     async def get_posts_by_thread(self, thread_id: str) -> list[Post]:
         return [p for p in self.posts if p.thread_id == thread_id]
@@ -83,7 +85,9 @@ def test_base_agent_expertise_and_probability(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.anyio
-async def test_call_llm_returns_none_without_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_call_llm_returns_none_without_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(base_agent.settings, "openrouter_api_key", "")
     agent = BaseAgent(agent_user(), AgentRepo())  # type: ignore[arg-type]
 
@@ -95,8 +99,10 @@ async def test_call_llm_invokes_langchain_and_returns_content(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(base_agent.settings, "openrouter_api_key", "test-key")
+
     async def noop_sleep(_: float) -> None:
         pass
+
     monkeypatch.setattr(base_agent.asyncio, "sleep", noop_sleep)
     agent = BaseAgent(agent_user(), AgentRepo())  # type: ignore[arg-type]
     fake_response = MagicMock()
@@ -116,8 +122,10 @@ async def test_call_llm_converts_messages_to_langchain_types(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(base_agent.settings, "openrouter_api_key", "test-key")
+
     async def noop_sleep(_: float) -> None:
         pass
+
     monkeypatch.setattr(base_agent.asyncio, "sleep", noop_sleep)
     agent = BaseAgent(agent_user(), AgentRepo())  # type: ignore[arg-type]
     captured: dict[str, Any] = {}
@@ -132,10 +140,12 @@ async def test_call_llm_converts_messages_to_langchain_types(
     mock_llm.ainvoke = capture_ainvoke
     agent._llm = mock_llm
 
-    await agent._call_llm([
-        {"role": "system", "content": "be helpful"},
-        {"role": "user", "content": "hello"},
-    ])
+    await agent._call_llm(
+        [
+            {"role": "system", "content": "be helpful"},
+            {"role": "user", "content": "hello"},
+        ]
+    )
 
     assert isinstance(captured["messages"][0], SystemMessage)
     assert captured["messages"][0].content == "be helpful"
@@ -201,7 +211,7 @@ async def test_generate_media_decodes_base64_image(
         def __init__(self, **kwargs: Any) -> None:
             pass
 
-        async def __aenter__(self) -> "FakeHttpxClient":
+        async def __aenter__(self) -> FakeHttpxClient:
             return self
 
         async def __aexit__(self, *args: Any) -> None:
@@ -240,7 +250,7 @@ async def test_generate_media_returns_none_when_response_empty(
         def __init__(self, **kwargs: Any) -> None:
             pass
 
-        async def __aenter__(self) -> "FakeHttpxClient":
+        async def __aenter__(self) -> FakeHttpxClient:
             return self
 
         async def __aexit__(self, *args: Any) -> None:
@@ -266,7 +276,7 @@ async def test_generate_media_returns_none_on_exception(
         def __init__(self, **kwargs: Any) -> None:
             pass
 
-        async def __aenter__(self) -> "FakeHttpxClient":
+        async def __aenter__(self) -> FakeHttpxClient:
             return self
 
         async def __aexit__(self, *args: Any) -> None:
@@ -306,7 +316,9 @@ async def test_maybe_respond_image_agent_creates_media_post(
         "_generate_media",
         AsyncMock(return_value=(b"imgdata", "image/png")),
     )
-    monkeypatch.setattr(s3_mod, "upload_media", AsyncMock(return_value="http://s3/img.png"))
+    monkeypatch.setattr(
+        s3_mod, "upload_media", AsyncMock(return_value="http://s3/img.png")
+    )
 
     parent = Post(thread_id="t1", author_id="human", content="Cool news")
     result = await agent.maybe_respond("t1", parent)
@@ -395,7 +407,9 @@ async def test_maybe_respond_skips_when_conversation_is_outside_expertise(
 
 
 @pytest.mark.anyio
-async def test_maybe_respond_respects_probability(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_maybe_respond_respects_probability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     user = agent_user()
     repo = AgentRepo()
     repo.thread = Thread(thread_id="thread-1", title="Python", created_by="human")
@@ -430,13 +444,19 @@ async def test_maybe_respond_returns_none_when_llm_has_no_reply(
 
 
 @pytest.mark.anyio
-async def test_maybe_respond_creates_trimmed_reply(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_maybe_respond_creates_trimmed_reply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     user = agent_user()
     human = User(user_id="human", username="Alice")
     repo = AgentRepo()
     repo.thread = Thread(thread_id="thread-1", title="Python", created_by=human.user_id)
     repo.posts = [
-        Post(thread_id="thread-1", author_id=human.user_id, content="How do decorators work?"),
+        Post(
+            thread_id="thread-1",
+            author_id=human.user_id,
+            content="How do decorators work?",
+        ),
         Post(thread_id="thread-1", author_id="missing", content="Unknown author here"),
     ]
     repo.users[human.user_id] = human
@@ -509,7 +529,9 @@ async def test_discussion_engine_schedules_agent_responses(
     monkeypatch.setattr(discussion.asyncio, "get_event_loop", lambda: Loop())
     monkeypatch.setattr(discussion.asyncio, "ensure_future", fake_ensure_future)
 
-    await engine.on_new_post("thread-1", Post(thread_id="thread-1", author_id="human", content="hi"))
+    await engine.on_new_post(
+        "thread-1", Post(thread_id="thread-1", author_id="human", content="hi")
+    )
 
     assert len(engine._agents) == 1
     assert delays == [7.5]
@@ -541,9 +563,18 @@ async def test_discussion_engine_broadcasts_agent_reply(
 
     monkeypatch.setattr(engine, "on_new_post", record_new_post)
 
-    await engine._agent_respond(FakeAgent(), "thread-1", Post(thread_id="thread-1", author_id="human", content="hi"))  # type: ignore[arg-type]
+    await engine._agent_respond(
+        FakeAgent(),
+        "thread-1",
+        Post(thread_id="thread-1", author_id="human", content="hi"),
+    )  # type: ignore[arg-type]
 
-    assert ws.broadcasts == [("thread-1", f'<div hx-swap-oob="beforeend:#posts">rendered:{reply.post_id}</div>')]
+    assert ws.broadcasts == [
+        (
+            "thread-1",
+            f'<div hx-swap-oob="beforeend:#posts">rendered:{reply.post_id}</div>',
+        )
+    ]
     assert retriggered == [("thread-1", reply)]
 
 
@@ -562,7 +593,11 @@ async def test_discussion_engine_logs_agent_errors() -> None:
         async def maybe_respond(self, thread_id: str, post: Post) -> Post | None:
             raise RuntimeError("boom")
 
-    await engine._agent_respond(BrokenAgent(), "thread-1", Post(thread_id="thread-1", author_id="human", content="hi"))  # type: ignore[arg-type]
+    await engine._agent_respond(
+        BrokenAgent(),
+        "thread-1",
+        Post(thread_id="thread-1", author_id="human", content="hi"),
+    )  # type: ignore[arg-type]
 
 
 class NewsRepo:
@@ -596,9 +631,23 @@ class NewsRepo:
 async def test_news_agent_promotes_limited_items_and_skips_remaining() -> None:
     long_content = "x" * 350
     items = [
-        NewsItem(item_id="n1", source="hackernews", title="Long", url="https://one", raw_content=long_content),
-        NewsItem(item_id="n2", source="hackernews", title="Empty", url="https://two", raw_content=None),
-        NewsItem(item_id="n3", source="hackernews", title="Skipped", url="https://three"),
+        NewsItem(
+            item_id="n1",
+            source="hackernews",
+            title="Long",
+            url="https://one",
+            raw_content=long_content,
+        ),
+        NewsItem(
+            item_id="n2",
+            source="hackernews",
+            title="Empty",
+            url="https://two",
+            raw_content=None,
+        ),
+        NewsItem(
+            item_id="n3", source="hackernews", title="Skipped", url="https://three"
+        ),
     ]
     repo = NewsRepo(items)
     user = agent_user(username="Nova")
@@ -624,7 +673,9 @@ async def test_news_agent_promotes_limited_items_and_skips_remaining() -> None:
 async def test_register_agents_reuses_existing_and_creates_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    existing = User(username="Nova", is_agent=True, agent_config=agent_config(persona_name="Nova"))
+    existing = User(
+        username="Nova", is_agent=True, agent_config=agent_config(persona_name="Nova")
+    )
     created: list[User] = []
 
     class Repo:
@@ -635,13 +686,21 @@ async def test_register_agents_reuses_existing_and_creates_missing(
             created.append(user)
             return user
 
-    monkeypatch.setattr(registry, "hash_password", lambda password: f"hashed:{password}")
+    monkeypatch.setattr(
+        registry, "hash_password", lambda password: f"hashed:{password}"
+    )
 
     users = await registry.register_agents(Repo())  # type: ignore[arg-type]
 
     assert users[0] is existing
     assert len(users) == len(registry.PERSONA_PRESETS)
-    assert [user.username for user in created] == ["Sage", "Pixel", "Ember", "Atlas", "Zara"]
+    assert [user.username for user in created] == [
+        "Sage",
+        "Pixel",
+        "Ember",
+        "Atlas",
+        "Zara",
+    ]
     assert all(
         user.password_hash == f"hashed:{user.username}_agent_secret" for user in created
     )
@@ -695,9 +754,13 @@ def test_tokenize_is_case_insensitive() -> None:
 @pytest.mark.anyio
 async def test_find_related_threads_returns_overlapping_threads() -> None:
     repo = AgentRepo()
-    current = Thread(thread_id="current", title="Python async programming", created_by="u")
+    current = Thread(
+        thread_id="current", title="Python async programming", created_by="u"
+    )
     related = Thread(thread_id="rel1", title="Python performance tips", created_by="u")
-    unrelated = Thread(thread_id="other", title="Cooking recipes collection", created_by="u")
+    unrelated = Thread(
+        thread_id="other", title="Cooking recipes collection", created_by="u"
+    )
     repo.thread = current
     repo.all_threads = [current, related, unrelated]
     repo.posts = [
@@ -749,8 +812,7 @@ async def test_find_related_threads_caps_at_max() -> None:
         for i in range(5)
     ]
     repo.posts = [
-        Post(thread_id=f"t{i}", author_id="u", content="some post")
-        for i in range(5)
+        Post(thread_id=f"t{i}", author_id="u", content="some post") for i in range(5)
     ]
 
     agent = BaseAgent(agent_user(), repo)  # type: ignore[arg-type]
@@ -766,8 +828,12 @@ async def test_maybe_respond_includes_related_thread_in_prompt(
     monkeypatch.setattr(base_agent.settings, "openrouter_api_key", "test-key")
     monkeypatch.setattr(base_agent.settings, "agent_seed_reply_post_count", 0)
 
-    current = Thread(thread_id="t1", title="Python async programming", created_by="human")
-    related = Thread(thread_id="t2", title="Python performance patterns", created_by="human")
+    current = Thread(
+        thread_id="t1", title="Python async programming", created_by="human"
+    )
+    related = Thread(
+        thread_id="t2", title="Python performance patterns", created_by="human"
+    )
 
     repo = AgentRepo()
     repo.thread = current
@@ -877,5 +943,3 @@ async def test_call_llm_hf_invokes_llm_with_hf_key(
     result = await agent._call_llm([{"role": "user", "content": "hello"}])
     assert result == "HF reply"
     mock_llm.ainvoke.assert_called_once()
-
-

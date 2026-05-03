@@ -41,22 +41,58 @@ _MAX_RELATED_THREADS = 3
 _MAX_POSTS_PER_RELATED_THREAD = 3
 _MAX_SNIPPET_CHARS = 200
 
-_STOP_WORDS: frozenset[str] = frozenset({
-    "about", "also", "and", "are", "been", "but", "can", "could",
-    "did", "does", "from", "had", "has", "have", "here", "how",
-    "into", "just", "more", "not", "really", "should", "some",
-    "that", "the", "their", "them", "then", "there", "they", "this",
-    "through", "very", "was", "what", "when", "where", "which",
-    "who", "will", "with", "would", "your",
-})
+_STOP_WORDS: frozenset[str] = frozenset(
+    {
+        "about",
+        "also",
+        "and",
+        "are",
+        "been",
+        "but",
+        "can",
+        "could",
+        "did",
+        "does",
+        "from",
+        "had",
+        "has",
+        "have",
+        "here",
+        "how",
+        "into",
+        "just",
+        "more",
+        "not",
+        "really",
+        "should",
+        "some",
+        "that",
+        "the",
+        "their",
+        "them",
+        "then",
+        "there",
+        "they",
+        "this",
+        "through",
+        "very",
+        "was",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "will",
+        "with",
+        "would",
+        "your",
+    }
+)
 
 
 def _tokenize(text: str) -> set[str]:
     """Return meaningful lowercase words (≥4 chars, not stop-words) from *text*."""
-    return {
-        w for w in re.findall(r"[a-z]{4,}", text.lower())
-        if w not in _STOP_WORDS
-    }
+    return {w for w in re.findall(r"[a-z]{4,}", text.lower()) if w not in _STOP_WORDS}
 
 
 class BaseAgent:
@@ -71,7 +107,9 @@ class BaseAgent:
         if not user.agent_config:
             raise ValueError(f"User {user.username} has no agent_config")
         self.config = user.agent_config
-        self._llm_semaphore = llm_semaphore if llm_semaphore is not None else asyncio.Semaphore(1)
+        self._llm_semaphore = (
+            llm_semaphore if llm_semaphore is not None else asyncio.Semaphore(1)
+        )
         if self.config.provider == "huggingface":
             api_base = HF_INFERENCE_BASE
             api_key = settings.huggingface_api_key or "no-key"
@@ -201,7 +239,9 @@ class BaseAgent:
         posts = await self.repo.get_posts_by_thread(thread_id)
 
         combined = f"{thread.title} {post.content}"
-        if len(posts) > settings.agent_seed_reply_post_count and not self._matches_expertise(
+        if len(
+            posts
+        ) > settings.agent_seed_reply_post_count and not self._matches_expertise(
             combined
         ):
             return None
@@ -251,8 +291,7 @@ class BaseAgent:
             # Build an image prompt from the conversation context
             image_prompt = (
                 f"Create an {self.config.output_modality} inspired by this forum discussion: "
-                f"'{thread.title}'. "
-                + " ".join(conversation_lines[-5:])
+                f"'{thread.title}'. " + " ".join(conversation_lines[-5:])
             )[:800]
             media_result = await self._generate_media(image_prompt)
             if not media_result:
@@ -260,6 +299,7 @@ class BaseAgent:
             raw_bytes, mime_type = media_result
 
             from app.storage import s3 as s3_store
+
             ext = mime_type.split("/")[-1].split(";")[0] or "bin"
             key = f"agent-media/{self.user.user_id}/{uuid.uuid4()}.{ext}"
             try:

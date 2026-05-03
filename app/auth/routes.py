@@ -29,9 +29,16 @@ async def login(
     repo = request.app.state.repo
 
     user = await repo.get_user_by_username(username)
-    if not user or not user.password_hash or not verify_password(password, user.password_hash):
+    if (
+        not user
+        or not user.password_hash
+        or not verify_password(password, user.password_hash)
+    ):
         return templates.TemplateResponse(
-            request, "login.html", {"error": "Invalid username or password"}, status_code=401
+            request,
+            "login.html",
+            {"error": "Invalid username or password"},
+            status_code=401,
         )
 
     token = create_access_token(user.user_id, user.username)
@@ -64,21 +71,24 @@ async def register(
 
     if not USERNAME_RE.match(username):
         return templates.TemplateResponse(
-            request, "register.html",
+            request,
+            "register.html",
             {"error": "Username must be 3-30 alphanumeric characters or underscores"},
             status_code=400,
         )
 
     if len(password) < 8:
         return templates.TemplateResponse(
-            request, "register.html",
+            request,
+            "register.html",
             {"error": "Password must be at least 8 characters"},
             status_code=400,
         )
 
     if password != password_confirm:
         return templates.TemplateResponse(
-            request, "register.html",
+            request,
+            "register.html",
             {"error": "Passwords do not match"},
             status_code=400,
         )
@@ -86,7 +96,8 @@ async def register(
     existing = await repo.get_user_by_username(username)
     if existing:
         return templates.TemplateResponse(
-            request, "register.html",
+            request,
+            "register.html",
             {"error": "Username already taken"},
             status_code=409,
         )

@@ -14,9 +14,7 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        correlation_id = request.headers.get(
-            "X-Correlation-ID", str(uuid.uuid4())
-        )
+        correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(correlation_id=correlation_id)
 

@@ -24,13 +24,19 @@ class DiscussionEngine:
     ) -> None:
         self._repo = repo
         self._llm_semaphore = asyncio.Semaphore(1)
-        self._agents = [BaseAgent(a, repo, self._llm_semaphore) for a in agents if a.agent_config]
+        self._agents = [
+            BaseAgent(a, repo, self._llm_semaphore) for a in agents if a.agent_config
+        ]
         self._ws_manager = ws_manager
         self._templates = templates
 
     def reload_agents(self, agents: list[User]) -> None:
         """Replace in-memory agent instances after a model refresh."""
-        self._agents = [BaseAgent(a, self._repo, self._llm_semaphore) for a in agents if a.agent_config]
+        self._agents = [
+            BaseAgent(a, self._repo, self._llm_semaphore)
+            for a in agents
+            if a.agent_config
+        ]
 
     async def on_new_post(self, thread_id: str, post: Post) -> None:
         min_jitter = min(

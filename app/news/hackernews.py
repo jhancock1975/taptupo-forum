@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import structlog
@@ -29,14 +29,16 @@ class HackerNewsFetcher:
                         data = sr.json()
                         if not data or data.get("type") != "story":
                             continue
-                        url = data.get("url", f"https://news.ycombinator.com/item?id={sid}")
+                        url = data.get(
+                            "url", f"https://news.ycombinator.com/item?id={sid}"
+                        )
                         items.append(
                             NewsItem(
                                 source=self.source_name,
                                 title=data.get("title", ""),
                                 url=url,
                                 raw_content=data.get("text"),
-                                fetched_at=datetime.now(timezone.utc),
+                                fetched_at=datetime.now(UTC),
                             )
                         )
                     except httpx.HTTPError:

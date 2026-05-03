@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator
 
 import structlog
 from fastapi import FastAPI
@@ -70,7 +70,9 @@ async def _model_discovery_loop(app: FastAPI) -> None:
                 service = ModelDiscoveryService(settings.openrouter_api_key)
                 agents = await app.state.repo.list_agents()
                 updated = await service.refresh_agent_models(
-                    agents, app.state.repo, PERSONA_PRESETS,
+                    agents,
+                    app.state.repo,
+                    PERSONA_PRESETS,
                     log=app.state.discovery_log,
                     hf_api_key=settings.huggingface_api_key,
                 )
@@ -108,6 +110,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # S3 media bucket
     from app.storage import s3 as s3_store
+
     await s3_store.ensure_bucket_exists()
 
     # Templates

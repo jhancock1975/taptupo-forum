@@ -1,4 +1,5 @@
 """S3 media storage service for agent-generated non-text content."""
+
 from __future__ import annotations
 
 import asyncio
@@ -42,7 +43,9 @@ async def ensure_bucket_exists() -> None:
                 await _run(
                     client.create_bucket,
                     Bucket=settings.s3_bucket,
-                    CreateBucketConfiguration={"LocationConstraint": settings.s3_region},
+                    CreateBucketConfiguration={
+                        "LocationConstraint": settings.s3_region
+                    },
                 )
             logger.info("s3_bucket_created", bucket=settings.s3_bucket)
         except Exception:
@@ -70,11 +73,7 @@ async def get_storage_bytes() -> int:
     total = 0
     paginator = client.get_paginator("list_objects_v2")
     try:
-        pages = await _run(
-            lambda: list(
-                paginator.paginate(Bucket=settings.s3_bucket)
-            )
-        )
+        pages = await _run(lambda: list(paginator.paginate(Bucket=settings.s3_bucket)))
         for page in pages:
             for obj in page.get("Contents", []):
                 total += obj.get("Size", 0)

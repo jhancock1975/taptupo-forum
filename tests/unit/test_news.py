@@ -108,7 +108,9 @@ async def test_hackernews_fetcher_builds_items_and_skips_bad_stories(
     FakeHNClient.requested_urls = []
     FakeHNClient.top_response = FakeHNResponse([1, 2, 3, 4])
     FakeHNClient.item_responses = {
-        1: FakeHNResponse({"type": "story", "title": "Story", "url": "https://story", "text": "body"}),
+        1: FakeHNResponse(
+            {"type": "story", "title": "Story", "url": "https://story", "text": "body"}
+        ),
         2: FakeHNResponse({"type": "story", "title": "Fallback"}),
         3: FakeHNResponse({"type": "job", "title": "Job"}),
         4: FakeHNResponse({}, error=httpx.HTTPError("item failed")),

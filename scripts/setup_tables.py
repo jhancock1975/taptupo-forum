@@ -4,6 +4,7 @@
 Usage:
     python -m scripts.setup_tables
 """
+
 from __future__ import annotations
 
 import sys

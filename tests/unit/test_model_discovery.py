@@ -1,13 +1,13 @@
 """Tests for app.agents.model_discovery."""
+
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.agents.model_discovery import (
-    SKILL_GENERATOR_MODEL,
     DiscoveryLog,
     ModelDiscoveryService,
     _context_label,
@@ -22,7 +22,6 @@ from app.agents.model_discovery import (
     _provider_of,
 )
 from app.models.schemas import AgentConfig, User
-
 
 # ── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -77,6 +76,7 @@ def test_log_event_stores_extra_kwargs_in_data() -> None:
 
 def test_log_event_trims_when_over_max(monkeypatch: pytest.MonkeyPatch) -> None:
     import app.agents.model_discovery as mod
+
     monkeypatch.setattr(mod, "_MAX_LOG_ENTRIES", 3)
     log: DiscoveryLog = []
     for i in range(5):
@@ -99,7 +99,9 @@ def test_output_modality_returns_image_for_text_to_image() -> None:
 
 
 def test_output_modality_returns_first_when_multiple_outputs() -> None:
-    assert _output_modality({"architecture": {"modality": "text->text,image"}}) == "text"
+    assert (
+        _output_modality({"architecture": {"modality": "text->text,image"}}) == "text"
+    )
 
 
 def test_output_modality_defaults_to_text_when_missing() -> None:
@@ -212,7 +214,7 @@ class FakeHttpxClient:
     def __init__(self, **kwargs: Any) -> None:
         pass
 
-    async def __aenter__(self) -> "FakeHttpxClient":
+    async def __aenter__(self) -> FakeHttpxClient:
         return self
 
     async def __aexit__(self, *args: Any) -> None:
@@ -223,7 +225,9 @@ class FakeHttpxClient:
 
 
 @pytest.mark.anyio
-async def test_fetch_free_models_filters_and_sorts(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_free_models_filters_and_sorts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import app.agents.model_discovery as mod
 
     monkeypatch.setattr(mod.httpx, "AsyncClient", FakeHttpxClient)
@@ -247,7 +251,9 @@ async def test_fetch_free_models_filters_and_sorts(monkeypatch: pytest.MonkeyPat
 @pytest.mark.anyio
 async def test_generate_model_skill_returns_empty_when_no_api_key() -> None:
     service = ModelDiscoveryService("")
-    result = await service.generate_model_skill({"id": "some/model"}, "Nova", ["curious"])
+    result = await service.generate_model_skill(
+        {"id": "some/model"}, "Nova", ["curious"]
+    )
     assert result == ""
 
 
@@ -398,8 +404,12 @@ async def test_generate_model_skill_uses_different_prompt_for_image_model(
 
     service = ModelDiscoveryService("test-key")
     skill = await service.generate_model_skill(
-        {"id": "flux/model:free", "name": "FLUX", "context_length": 0,
-         "architecture": {"modality": "text->image"}},
+        {
+            "id": "flux/model:free",
+            "name": "FLUX",
+            "context_length": 0,
+            "architecture": {"modality": "text->image"},
+        },
         "Pixel",
         ["creative"],
     )
@@ -415,7 +425,9 @@ def _make_agent(username: str) -> User:
     return User(
         username=username,
         is_agent=True,
-        agent_config=AgentConfig(model_id="placeholder/model:free", persona_name=username),
+        agent_config=AgentConfig(
+            model_id="placeholder/model:free", persona_name=username
+        ),
     )
 
 
@@ -497,7 +509,16 @@ async def test_refresh_agent_models_returns_zero_when_no_free_models(
     result = await service.refresh_agent_models(
         [nova],  # type: ignore[arg-type]
         FakeRepo(),
-        [{"username": "Nova", "persona_name": "Nova", "expertise_areas": [], "personality_traits": [], "response_probability": 0.5, "base_system_prompt": ""}],
+        [
+            {
+                "username": "Nova",
+                "persona_name": "Nova",
+                "expertise_areas": [],
+                "personality_traits": [],
+                "response_probability": 0.5,
+                "base_system_prompt": "",
+            }
+        ],
     )
     assert result == 0
 
@@ -530,21 +551,28 @@ async def test_refresh_agent_models_populates_log(
     """refresh_agent_models should emit job_started, models_fetched, agent_assigned,
     and job_complete events into the provided log."""
     service = ModelDiscoveryService("test-key")
-    models = [{"id": "openai/gpt-oss-20b:free", "context_length": 200000,
-               "architecture": {"modality": "text->text"}}]
+    models = [
+        {
+            "id": "openai/gpt-oss-20b:free",
+            "context_length": 200000,
+            "architecture": {"modality": "text->text"},
+        }
+    ]
     monkeypatch.setattr(service, "fetch_free_models", AsyncMock(return_value=models))
     monkeypatch.setattr(
         service,
         "build_agent_config",
-        AsyncMock(return_value=AgentConfig(
-            model_id="openai/gpt-oss-20b:free",
-            persona_name="Nova",
-            expertise_areas=[],
-            personality_traits=[],
-            response_probability=0.5,
-            system_prompt="",
-            model_label="OpenAI · GPT-OSS 20B",
-        )),
+        AsyncMock(
+            return_value=AgentConfig(
+                model_id="openai/gpt-oss-20b:free",
+                persona_name="Nova",
+                expertise_areas=[],
+                personality_traits=[],
+                response_probability=0.5,
+                system_prompt="",
+                model_label="OpenAI · GPT-OSS 20B",
+            )
+        ),
     )
 
     nova = _make_agent("Nova")
@@ -552,8 +580,16 @@ async def test_refresh_agent_models_populates_log(
     result = await service.refresh_agent_models(
         [nova],  # type: ignore[arg-type]
         FakeRepo(),
-        [{"username": "Nova", "persona_name": "Nova", "expertise_areas": [],
-          "personality_traits": [], "response_probability": 0.5, "base_system_prompt": ""}],
+        [
+            {
+                "username": "Nova",
+                "persona_name": "Nova",
+                "expertise_areas": [],
+                "personality_traits": [],
+                "response_probability": 0.5,
+                "base_system_prompt": "",
+            }
+        ],
         log=log,
     )
 
@@ -597,7 +633,10 @@ async def test_refresh_agent_models_logs_no_agent_pairs(
 
 
 def test_hf_is_accessible_for_non_gated_model() -> None:
-    assert _hf_is_accessible({"id": "meta-llama/Llama-3.2-3B-Instruct", "gated": False}) is True
+    assert (
+        _hf_is_accessible({"id": "meta-llama/Llama-3.2-3B-Instruct", "gated": False})
+        is True
+    )
 
 
 def test_hf_is_accessible_for_auto_gated_model() -> None:
@@ -642,7 +681,7 @@ class FakeHFResponse:
         return [
             {"id": "meta-llama/Llama-3.2-3B-Instruct", "gated": False},
             {"id": "microsoft/Phi-3.5-mini-instruct", "gated": False},
-            {"id": "google/gemma-2-2b", "gated": False},   # excluded prefix
+            {"id": "google/gemma-2-2b", "gated": False},  # excluded prefix
             {"id": "org/private-model", "gated": "manual"},  # excluded gated
         ]
 
@@ -651,7 +690,7 @@ class FakeHFClient:
     def __init__(self, **_: Any) -> None:
         pass
 
-    async def __aenter__(self) -> "FakeHFClient":
+    async def __aenter__(self) -> FakeHFClient:
         return self
 
     async def __aexit__(self, *_: Any) -> None:
@@ -666,6 +705,7 @@ async def test_fetch_free_hf_models_returns_normalised_accessible_models(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import app.agents.model_discovery as mod
+
     monkeypatch.setattr(mod.httpx, "AsyncClient", FakeHFClient)
     service = ModelDiscoveryService("or-key")
 
@@ -693,7 +733,7 @@ async def test_fetch_free_hf_models_raises_on_http_error(
         def __init__(self, **_: Any) -> None:
             pass
 
-        async def __aenter__(self) -> "ErrorClient":
+        async def __aenter__(self) -> ErrorClient:
             return self
 
         async def __aexit__(self, *_: Any) -> None:
@@ -714,7 +754,10 @@ async def test_fetch_free_hf_models_raises_on_http_error(
 
 def test_select_diverse_models_uses_diversity_provider_key() -> None:
     models = [
-        {"id": "meta-llama/Llama-3.2-3B-Instruct", "_diversity_provider": "hf-meta-llama"},
+        {
+            "id": "meta-llama/Llama-3.2-3B-Instruct",
+            "_diversity_provider": "hf-meta-llama",
+        },
         # Same author on OpenRouter – should be treated as separate provider
         {"id": "meta-llama/llama-3.3-70b:free"},
         {"id": "openai/gpt-oss-20b:free"},
@@ -726,8 +769,14 @@ def test_select_diverse_models_uses_diversity_provider_key() -> None:
 def test_select_diverse_models_deduplicates_hf_authors() -> None:
     # Two HF models from the same author should only yield one slot
     models = [
-        {"id": "meta-llama/Llama-3.2-3B-Instruct", "_diversity_provider": "hf-meta-llama"},
-        {"id": "meta-llama/Llama-3.3-70B-Instruct", "_diversity_provider": "hf-meta-llama"},
+        {
+            "id": "meta-llama/Llama-3.2-3B-Instruct",
+            "_diversity_provider": "hf-meta-llama",
+        },
+        {
+            "id": "meta-llama/Llama-3.3-70B-Instruct",
+            "_diversity_provider": "hf-meta-llama",
+        },
         {"id": "openai/gpt-oss-20b:free"},
     ]
     result = ModelDiscoveryService.select_diverse_models(models, 5)
@@ -806,10 +855,16 @@ async def test_refresh_agent_models_combines_or_and_hf_models(
         "architecture": {"modality": "text->text"},
     }
     hf_model = _hf_model_to_api_format({"id": "meta-llama/Llama-3.2-3B-Instruct"})
-    monkeypatch.setattr(service, "fetch_free_models", AsyncMock(return_value=[or_model]))
-    monkeypatch.setattr(service, "fetch_free_hf_models", AsyncMock(return_value=[hf_model]))
+    monkeypatch.setattr(
+        service, "fetch_free_models", AsyncMock(return_value=[or_model])
+    )
+    monkeypatch.setattr(
+        service, "fetch_free_hf_models", AsyncMock(return_value=[hf_model])
+    )
 
-    fake_config = AgentConfig(model_id="x/y", persona_name="Nova", provider="openrouter")
+    fake_config = AgentConfig(
+        model_id="x/y", persona_name="Nova", provider="openrouter"
+    )
     nova = User(username="Nova", is_agent=True, agent_config=fake_config)
 
     built: list[dict[str, Any]] = []
@@ -866,13 +921,17 @@ async def test_refresh_agent_models_handles_hf_fetch_exception(
         "pricing": {"prompt": "0", "completion": "0"},
         "architecture": {"modality": "text->text"},
     }
-    monkeypatch.setattr(service, "fetch_free_models", AsyncMock(return_value=[or_model]))
+    monkeypatch.setattr(
+        service, "fetch_free_models", AsyncMock(return_value=[or_model])
+    )
     monkeypatch.setattr(
         service, "fetch_free_hf_models", AsyncMock(side_effect=RuntimeError("HF down"))
     )
     monkeypatch.setattr(service, "generate_model_skill", AsyncMock(return_value=""))
 
-    fake_config = AgentConfig(model_id="x/y", persona_name="Nova", provider="openrouter")
+    fake_config = AgentConfig(
+        model_id="x/y", persona_name="Nova", provider="openrouter"
+    )
     nova = User(username="Nova", is_agent=True, agent_config=fake_config)
     persona = {
         "username": "Nova",
@@ -897,7 +956,9 @@ async def test_refresh_agent_models_returns_zero_when_no_free_models_from_either
     monkeypatch.setattr(service, "fetch_free_models", AsyncMock(return_value=[]))
     monkeypatch.setattr(service, "fetch_free_hf_models", AsyncMock(return_value=[]))
     log: list[dict] = []
-    result = await service.refresh_agent_models([], FakeRepo(), [], hf_api_key="hf-token", log=log)
+    result = await service.refresh_agent_models(
+        [], FakeRepo(), [], hf_api_key="hf-token", log=log
+    )
     assert result == 0
     assert any(e["event"] in ("fetch_failed", "no_free_models") for e in log)
 
@@ -1045,7 +1106,9 @@ async def test_refresh_agent_models_calls_curate_candidate_models(
 ) -> None:
     """refresh_agent_models should invoke curate_candidate_models before assignment."""
     service = ModelDiscoveryService("test-key")
-    models = [{"id": "openai/gpt-oss-20b:free", "context_length": 200000, "name": "GPT-OSS"}]
+    models = [
+        {"id": "openai/gpt-oss-20b:free", "context_length": 200000, "name": "GPT-OSS"}
+    ]
     monkeypatch.setattr(service, "fetch_free_models", AsyncMock(return_value=models))
     curate_mock = AsyncMock(return_value=models)
     monkeypatch.setattr(service, "curate_candidate_models", curate_mock)
@@ -1064,5 +1127,3 @@ async def test_refresh_agent_models_calls_curate_candidate_models(
     ]
     await service.refresh_agent_models([nova], FakeRepo(), personas)  # type: ignore[arg-type]
     curate_mock.assert_called_once()
-
-

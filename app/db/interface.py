@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from app.models.schemas import AgentConfig, NewsItem, Post, Thread, User
 
@@ -16,10 +15,10 @@ class RepositoryInterface(ABC):
     async def create_user(self, user: User) -> User: ...
 
     @abstractmethod
-    async def get_user(self, user_id: str) -> Optional[User]: ...
+    async def get_user(self, user_id: str) -> User | None: ...
 
     @abstractmethod
-    async def get_user_by_username(self, username: str) -> Optional[User]: ...
+    async def get_user_by_username(self, username: str) -> User | None: ...
 
     @abstractmethod
     async def list_agents(self) -> list[User]: ...
@@ -30,7 +29,7 @@ class RepositoryInterface(ABC):
     async def create_thread(self, thread: Thread) -> Thread: ...
 
     @abstractmethod
-    async def get_thread(self, thread_id: str) -> Optional[Thread]: ...
+    async def get_thread(self, thread_id: str) -> Thread | None: ...
 
     @abstractmethod
     async def list_threads(self, limit: int = 50) -> list[Thread]: ...
@@ -59,11 +58,11 @@ class RepositoryInterface(ABC):
         self,
         item_id: str,
         status: str,
-        promoted_thread_id: Optional[str] = None,
+        promoted_thread_id: str | None = None,
     ) -> None: ...
 
     @abstractmethod
-    async def get_news_item_by_url(self, url: str) -> Optional[NewsItem]: ...
+    async def get_news_item_by_url(self, url: str) -> NewsItem | None: ...
 
     # ── Storage ──
 

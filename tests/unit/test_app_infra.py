@@ -90,7 +90,9 @@ class FakeWebSocket:
 
 
 @pytest.mark.anyio
-async def test_connection_manager_accepts_disconnects_and_removes_dead_sockets() -> None:
+async def test_connection_manager_accepts_disconnects_and_removes_dead_sockets() -> (
+    None
+):
     manager = ConnectionManager()
     live = FakeWebSocket()
     dead = FakeWebSocket(fail_send=True)
@@ -153,7 +155,10 @@ async def test_news_loop_fetches_promotes_logs_errors_and_stops(
 
         async def promote_news(self, max_items: int = 5) -> list[SimpleNamespace]:
             self.promotions.append(max_items)
-            return [SimpleNamespace(thread_id="thread-a"), SimpleNamespace(thread_id="thread-b")]
+            return [
+                SimpleNamespace(thread_id="thread-a"),
+                SimpleNamespace(thread_id="thread-b"),
+            ]
 
     class Repo:
         def __init__(self) -> None:
@@ -301,10 +306,10 @@ def test_docker_compose_dynamodb_local_can_write_to_volume() -> None:
         "dynamodb-local must run as root so it can write to the Docker named volume; "
         "without this the container crashes on startup with SQLiteException [14]"
     )
-    assert "-dbPath" in dynamo["command"], (
-        "dynamodb-local must use -dbPath for persistent storage (not -inMemory)"
-    )
+    assert (
+        "-dbPath" in dynamo["command"]
+    ), "dynamodb-local must use -dbPath for persistent storage (not -inMemory)"
     volume_refs = [str(v) for v in dynamo.get("volumes", [])]
-    assert any("dynamodb-data" in v for v in volume_refs), (
-        "dynamodb-local must mount the dynamodb-data volume at the -dbPath location"
-    )
+    assert any(
+        "dynamodb-data" in v for v in volume_refs
+    ), "dynamodb-local must mount the dynamodb-data volume at the -dbPath location"

@@ -142,7 +142,8 @@ async def create_thread(
 
     if not title or not content:
         return templates.TemplateResponse(
-            request, "new_thread.html",
+            request,
+            "new_thread.html",
             {"user": user, "error": "Title and content are required"},
             status_code=400,
         )
@@ -187,7 +188,9 @@ async def db_usage(request: Request) -> HTMLResponse:
     return HTMLResponse(content=svg)
 
 
-def _storage_gauge_svg(used_bytes: int, limit_bytes: int, css_class: str, label_prefix: str) -> str:
+def _storage_gauge_svg(
+    used_bytes: int, limit_bytes: int, css_class: str, label_prefix: str
+) -> str:
     """Shared donut-gauge SVG renderer."""
     pct = min(100.0, used_bytes / limit_bytes * 100) if limit_bytes > 0 else 0.0
     circ = 2 * math.pi * 14
@@ -206,7 +209,7 @@ def _storage_gauge_svg(used_bytes: int, limit_bytes: int, css_class: str, label_
     unit = "MB"
     if limit_val >= 1024:
         limit_val /= 1024
-        used_mb = round(used_bytes / (1024 ** 3), 2)
+        used_mb = round(used_bytes / (1024**3), 2)
         unit = "GB"
 
     label = f"{used_mb} {unit} / {limit_val:.0f} {unit}"
@@ -289,7 +292,7 @@ def _render_discovery_log(events: list[dict]) -> str:
                 else ""
             )
             detail_parts.append(
-                f'<strong>{agent}</strong> → '
+                f"<strong>{agent}</strong> → "
                 f'<span class="discovery-model-name">{model_label}</span>{mod_badge}'
             )
         elif event == "agent_failed":
@@ -327,7 +330,11 @@ def _discovery_status_html(log: list[dict]) -> str:
     """Return a compact nav pill summarising the latest discovery run."""
     # Find the most recent job_complete / fetch_failed event
     last_complete = next(
-        (e for e in reversed(log) if e.get("event") in ("job_complete", "fetch_failed")),
+        (
+            e
+            for e in reversed(log)
+            if e.get("event") in ("job_complete", "fetch_failed")
+        ),
         None,
     )
     # Check whether a job is currently in-flight (started but not finished)
@@ -336,12 +343,15 @@ def _discovery_status_html(log: list[dict]) -> str:
         None,
     )
     last_complete_idx = next(
-        (i for i, e in enumerate(reversed(log)) if e.get("event") in ("job_complete", "fetch_failed")),
+        (
+            i
+            for i, e in enumerate(reversed(log))
+            if e.get("event") in ("job_complete", "fetch_failed")
+        ),
         None,
     )
-    running = (
-        last_started_idx is not None
-        and (last_complete_idx is None or last_started_idx < last_complete_idx)
+    running = last_started_idx is not None and (
+        last_complete_idx is None or last_started_idx < last_complete_idx
     )
 
     if running:
@@ -356,7 +366,11 @@ def _discovery_status_html(log: list[dict]) -> str:
         updated = data.get("updated", 0)
         # Count distinct models seen in this run by scanning back to the last job_started
         model_count = next(
-            (e["data"].get("count", 0) for e in reversed(log) if e.get("event") == "models_fetched"),
+            (
+                e["data"].get("count", 0)
+                for e in reversed(log)
+                if e.get("event") == "models_fetched"
+            ),
             0,
         )
         ts = last_complete.get("ts", "")

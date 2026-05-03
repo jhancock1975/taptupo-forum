@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from functools import partial
-from typing import Any, Optional
+from typing import Any
 
 import boto3
 import structlog
@@ -162,16 +162,14 @@ class DynamoLocalRepository(RepositoryInterface):
         await self._run(self._table("Users").put_item, Item=item)
         return user
 
-    async def get_user(self, user_id: str) -> Optional[User]:
-        resp = await self._run(
-            self._table("Users").get_item, Key={"user_id": user_id}
-        )
+    async def get_user(self, user_id: str) -> User | None:
+        resp = await self._run(self._table("Users").get_item, Key={"user_id": user_id})
         raw = resp.get("Item")
         if not raw:
             return None
         return self._user_from_item(raw)
 
-    async def get_user_by_username(self, username: str) -> Optional[User]:
+    async def get_user_by_username(self, username: str) -> User | None:
         resp = await self._run(
             self._table("Users").query,
             IndexName="username-index",
@@ -205,7 +203,7 @@ class DynamoLocalRepository(RepositoryInterface):
         await self._run(self._table("Threads").put_item, Item=item)
         return thread
 
-    async def get_thread(self, thread_id: str) -> Optional[Thread]:
+    async def get_thread(self, thread_id: str) -> Thread | None:
         resp = await self._run(
             self._table("Threads").get_item, Key={"thread_id": thread_id}
         )
@@ -217,14 +215,13 @@ class DynamoLocalRepository(RepositoryInterface):
     async def list_threads(self, limit: int = 50) -> list[Thread]:
         resp = await self._run(self._table("Threads").scan, Limit=limit)
         threads = [
-            Thread.model_validate(_restore_floats(i))
-            for i in resp.get("Items", [])
+            Thread.model_validate(_restore_floats(i)) for i in resp.get("Items", [])
         ]
         threads.sort(key=lambda t: t.last_activity_at, reverse=True)
         return threads
 
     async def update_thread_activity(self, thread_id: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         await self._run(
             self._table("Threads").update_item,
             Key={"thread_id": thread_id},
@@ -246,10 +243,7 @@ class DynamoLocalRepository(RepositoryInterface):
             KeyConditionExpression="thread_id = :t",
             ExpressionAttributeValues={":t": thread_id},
         )
-        posts = [
-            Post.model_validate(_restore_floats(i))
-            for i in resp.get("Items", [])
-        ]
+        posts = [Post.model_validate(_restore_floats(i)) for i in resp.get("Items", [])]
         posts.sort(key=lambda p: p.created_at)
         return posts
 
@@ -269,15 +263,14 @@ class DynamoLocalRepository(RepositoryInterface):
             ExpressionAttributeValues={":s": status},
         )
         return [
-            NewsItem.model_validate(_restore_floats(i))
-            for i in resp.get("Items", [])
+            NewsItem.model_validate(_restore_floats(i)) for i in resp.get("Items", [])
         ]
 
     async def update_news_item_status(
         self,
         item_id: str,
         status: str,
-        promoted_thread_id: Optional[str] = None,
+        promoted_thread_id: str | None = None,
     ) -> None:
         expr = "SET #s = :s"
         vals: dict[str, Any] = {":s": status}
@@ -292,7 +285,7 @@ class DynamoLocalRepository(RepositoryInterface):
             ExpressionAttributeValues=vals,
         )
 
-    async def get_news_item_by_url(self, url: str) -> Optional[NewsItem]:
+    async def get_news_item_by_url(self, url: str) -> NewsItem | None:
         resp = await self._run(
             self._table("NewsItems").scan,
             FilterExpression="contains(#u, :u)",

@@ -1,8 +1,8 @@
 """Tests for app/storage/s3.py."""
+
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -32,7 +32,7 @@ class FakeS3Client:
         self.objects[key] = {"Size": len(kwargs.get("Body", b""))}
         return {}
 
-    def get_paginator(self, operation: str) -> "FakePaginator":
+    def get_paginator(self, operation: str) -> FakePaginator:
         return FakePaginator(self.objects)
 
 

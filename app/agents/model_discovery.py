@@ -1,9 +1,10 @@
 """Discover free LLMs from OpenRouter and generate per-model skills for each persona."""
+
 from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -84,7 +85,7 @@ def _log_event(log: DiscoveryLog | None, event: str, **data: Any) -> None:
         return
     log.append(
         {
-            "ts": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "ts": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "event": event,
             "data": data,
         }
@@ -216,11 +217,7 @@ class ModelDiscoveryService:
             resp.raise_for_status()
             raw: list[dict[str, Any]] = resp.json()
 
-        return [
-            _hf_model_to_api_format(m)
-            for m in raw
-            if _hf_is_accessible(m)
-        ]
+        return [_hf_model_to_api_format(m) for m in raw if _hf_is_accessible(m)]
 
     @staticmethod
     def select_diverse_models(
@@ -324,7 +321,9 @@ class ModelDiscoveryService:
             ctx = m.get("context_length", 0)
             provider = m.get("_provider_type", "openrouter")
             desc = (m.get("description") or "")[:100]
-            catalogue_lines.append(f"- {mid} | {name} | ctx:{ctx} | {provider} | {desc}")
+            catalogue_lines.append(
+                f"- {mid} | {name} | ctx:{ctx} | {provider} | {desc}"
+            )
             id_to_model[mid] = m
 
         catalogue = "\n".join(catalogue_lines)
@@ -337,7 +336,7 @@ class ModelDiscoveryService:
             f"if any appear in the catalogue. Prefer variety across providers "
             f"(openrouter and huggingface) and a mix of context-window sizes. "
             f"Return ONLY a JSON array of model IDs, best first. "
-            f"Example: [\"id1\", \"id2\"]\n\n"
+            f'Example: ["id1", "id2"]\n\n'
             f"Catalogue:\n{catalogue}"
         )
 
@@ -361,7 +360,9 @@ class ModelDiscoveryService:
             ranked = [id_to_model[mid] for mid in ranked_ids if mid in id_to_model]
             mentioned = {m.get("id") for m in ranked}
             remaining = [m for m in models if m.get("id") not in mentioned]
-            logger.info("model_curation_complete", ranked=len(ranked), remaining=len(remaining))
+            logger.info(
+                "model_curation_complete", ranked=len(ranked), remaining=len(remaining)
+            )
             return ranked + remaining
         except Exception:
             logger.exception("model_curation_failed")
@@ -389,8 +390,9 @@ class ModelDiscoveryService:
         if out_mod != "text":
             # For image/audio models replace text instructions with generation prompt
             system_prompt = (
-                f"{base_prompt}\n\nYou generate {out_mod} content. "
-                f"{skill}" if skill else base_prompt
+                f"{base_prompt}\n\nYou generate {out_mod} content. " f"{skill}"
+                if skill
+                else base_prompt
             )
         else:
             system_prompt = (
@@ -518,7 +520,9 @@ class ModelDiscoveryService:
                 updated += 1
             except Exception:
                 logger.exception("agent_update_failed", agent=user.username)
-                _log_event(log, "agent_failed", agent=user.username, model_id=model.get("id"))
+                _log_event(
+                    log, "agent_failed", agent=user.username, model_id=model.get("id")
+                )
 
         _log_event(log, "job_complete", updated=updated)
         return updated

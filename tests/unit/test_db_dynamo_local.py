@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -75,7 +75,11 @@ class FakeTable:
 
 
 class FakeClient:
-    def __init__(self, table_names: list[str] | None = None, table_sizes: dict[str, int] | None = None) -> None:
+    def __init__(
+        self,
+        table_names: list[str] | None = None,
+        table_sizes: dict[str, int] | None = None,
+    ) -> None:
         self.table_names = table_names or []
         self.table_sizes = table_sizes or {}
 
@@ -95,7 +99,9 @@ class FakeResource:
         table_sizes: dict[str, int] | None = None,
     ) -> None:
         self.meta = type("Meta", (), {"client": FakeClient(table_names, table_sizes)})()  # type: ignore[arg-type]
-        self.tables = {name: FakeTable(name) for name in ["Users", "Threads", "Posts", "NewsItems"]}
+        self.tables = {
+            name: FakeTable(name) for name in ["Users", "Threads", "Posts", "NewsItems"]
+        }
         self.created_tables: list[str] = []
         self.create_error = create_error
 
@@ -114,9 +120,12 @@ def make_repo(
     *,
     inline_run: bool = True,
 ) -> DynamoLocalRepository:
-    monkeypatch.setattr(dynamo_local.boto3, "resource", lambda *args, **kwargs: resource)
+    monkeypatch.setattr(
+        dynamo_local.boto3, "resource", lambda *args, **kwargs: resource
+    )
     repo = DynamoLocalRepository()
     if inline_run:
+
         async def run_inline(fn: Any, *args: Any, **kwargs: Any) -> Any:
             return fn(*args, **kwargs)
 
@@ -131,14 +140,19 @@ def client_error(code: str) -> ClientError:
 def test_float_conversion_helpers_handle_nested_values() -> None:
     converted = _replace_floats({"ratio": 0.25, "items": [1.5, {"plain": "x"}]})
 
-    assert converted == {"ratio": Decimal("0.25"), "items": [Decimal("1.5"), {"plain": "x"}]}
+    assert converted == {
+        "ratio": Decimal("0.25"),
+        "items": [Decimal("1.5"), {"plain": "x"}],
+    }
     assert _restore_floats(converted) == {"ratio": 0.25, "items": [1.5, {"plain": "x"}]}
     assert _replace_floats("unchanged") == "unchanged"
     assert _restore_floats("unchanged") == "unchanged"
 
 
 @pytest.mark.anyio
-async def test_run_delegates_to_event_loop_executor(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_run_delegates_to_event_loop_executor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     resource = FakeResource()
     repo = make_repo(monkeypatch, resource, inline_run=False)
 
@@ -155,7 +169,9 @@ async def test_run_delegates_to_event_loop_executor(monkeypatch: pytest.MonkeyPa
 
 
 @pytest.mark.anyio
-async def test_init_tables_creates_missing_tables(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_init_tables_creates_missing_tables(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     resource = FakeResource(table_names=["Users"])
     repo = make_repo(monkeypatch, resource)
 
@@ -165,7 +181,9 @@ async def test_init_tables_creates_missing_tables(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.anyio
-async def test_init_tables_ignores_concurrent_create(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_init_tables_ignores_concurrent_create(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     resource = FakeResource(create_error=client_error("ResourceInUseException"))
     repo = make_repo(monkeypatch, resource)
 
@@ -184,7 +202,9 @@ async def test_init_tables_reraises_unexpected_client_errors(
 
 
 @pytest.mark.anyio
-async def test_user_methods_round_trip_and_query(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_user_methods_round_trip_and_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     resource = FakeResource()
     repo = make_repo(monkeypatch, resource)
     config = AgentConfig(
@@ -226,13 +246,13 @@ async def test_thread_methods_sort_and_update(monkeypatch: pytest.MonkeyPatch) -
         thread_id="older",
         title="Older",
         created_by="u1",
-        last_activity_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        last_activity_at=datetime(2024, 1, 1, tzinfo=UTC),
     )
     newer = Thread(
         thread_id="newer",
         title="Newer",
         created_by="u2",
-        last_activity_at=datetime(2024, 1, 2, tzinfo=timezone.utc),
+        last_activity_at=datetime(2024, 1, 2, tzinfo=UTC),
     )
 
     await repo.create_thread(older)
@@ -258,14 +278,14 @@ async def test_post_methods_sort_by_created_at(monkeypatch: pytest.MonkeyPatch) 
         thread_id="thread-1",
         author_id="u1",
         content="late",
-        created_at=datetime(2024, 1, 2, tzinfo=timezone.utc),
+        created_at=datetime(2024, 1, 2, tzinfo=UTC),
     )
     early = Post(
         post_id="early",
         thread_id="thread-1",
         author_id="u2",
         content="early",
-        created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
     )
 
     await repo.create_post(late)
@@ -276,11 +296,17 @@ async def test_post_methods_sort_by_created_at(monkeypatch: pytest.MonkeyPatch) 
 
 
 @pytest.mark.anyio
-async def test_news_item_methods_query_and_update(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_news_item_methods_query_and_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     resource = FakeResource()
     repo = make_repo(monkeypatch, resource)
-    first = NewsItem(item_id="n1", source="hn", title="One", url="https://example.com/one")
-    second = NewsItem(item_id="n2", source="hn", title="Two", url="https://example.com/two")
+    first = NewsItem(
+        item_id="n1", source="hn", title="One", url="https://example.com/one"
+    )
+    second = NewsItem(
+        item_id="n2", source="hn", title="Two", url="https://example.com/two"
+    )
 
     await repo.create_news_item(first)
     await repo.create_news_item(second)
@@ -303,7 +329,9 @@ async def test_news_item_methods_query_and_update(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.anyio
-async def test_get_storage_bytes_sums_table_sizes(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_storage_bytes_sums_table_sizes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sizes = {"Users": 1024, "Threads": 2048, "Posts": 4096, "NewsItems": 512}
     resource = FakeResource(table_sizes=sizes)
     repo = make_repo(monkeypatch, resource)
@@ -314,7 +342,9 @@ async def test_get_storage_bytes_sums_table_sizes(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.anyio
-async def test_get_storage_bytes_returns_zero_when_no_sizes(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_storage_bytes_returns_zero_when_no_sizes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     resource = FakeResource()
     repo = make_repo(monkeypatch, resource)
 
@@ -369,7 +399,9 @@ class InterfaceProbe(RepositoryInterface):
         status: str,
         promoted_thread_id: str | None = None,
     ) -> None:
-        return await super().update_news_item_status(item_id, status, promoted_thread_id)
+        return await super().update_news_item_status(
+            item_id, status, promoted_thread_id
+        )
 
     async def get_news_item_by_url(self, url: str) -> NewsItem | None:
         return await super().get_news_item_by_url(url)
@@ -405,11 +437,18 @@ async def test_repository_interface_default_bodies_are_noops() -> None:
     assert await probe.update_news_item_status(item.item_id, "skipped") is None
     assert await probe.get_news_item_by_url(item.url) is None
     assert await probe.get_storage_bytes() is None
-    assert await probe.update_agent_config(user.user_id, AgentConfig(model_id="x", persona_name="x")) is None
+    assert (
+        await probe.update_agent_config(
+            user.user_id, AgentConfig(model_id="x", persona_name="x")
+        )
+        is None
+    )
 
 
 @pytest.mark.anyio
-async def test_update_agent_config_overwrites_config_in_db(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_update_agent_config_overwrites_config_in_db(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     resource = FakeResource()
     repo = make_repo(monkeypatch, resource)
     config = AgentConfig(model_id="old/model:free", persona_name="Nova")
