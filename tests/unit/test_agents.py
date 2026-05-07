@@ -982,3 +982,23 @@ def test_agent_config_custom_tool_profile():
     assert config.tool_profile.affinity == "high"
     assert config.tool_profile.max_tools_per_turn == 2
     assert "hn.top_stories" in config.tool_profile.preferred_tools
+
+
+def test_all_persona_presets_have_tool_profile():
+    from app.agents.registry import PERSONA_PRESETS
+
+    for preset in PERSONA_PRESETS:
+        assert "tool_profile" in preset, f"{preset['username']} missing tool_profile"
+        tp = preset["tool_profile"]
+        assert tp["affinity"] in ("high", "medium", "low", "none")
+        assert tp["tool_nudge"] in ("always", "when_relevant", "rarely")
+        assert isinstance(tp["preferred_tools"], list)
+        assert isinstance(tp["max_tools_per_turn"], int)
+
+
+def test_pixel_has_no_tool_affinity():
+    from app.agents.registry import PERSONA_PRESETS
+
+    pixel = next(p for p in PERSONA_PRESETS if p["username"] == "Pixel")
+    assert pixel["tool_profile"]["affinity"] == "none"
+    assert pixel["tool_profile"]["max_tools_per_turn"] == 0

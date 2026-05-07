@@ -4,7 +4,7 @@ import structlog
 
 from app.auth.utils import hash_password
 from app.db.interface import RepositoryInterface
-from app.models.schemas import AgentConfig, User
+from app.models.schemas import AgentConfig, ToolProfile, User
 
 logger = structlog.get_logger()
 
@@ -26,6 +26,12 @@ PERSONA_PRESETS: list[dict] = [
             "technology, startups, and programming. You ask insightful questions "
             "and give concise, well-reasoned opinions. Keep replies under 200 words."
         ),
+        "tool_profile": {
+            "affinity": "medium",
+            "preferred_tools": ["hn.top_stories"],
+            "tool_nudge": "when_relevant",
+            "max_tools_per_turn": 2,
+        },
     },
     {
         "username": "Sage",
@@ -38,6 +44,12 @@ PERSONA_PRESETS: list[dict] = [
             "research, and mathematics. You provide well-cited, precise analysis. "
             "You prefer nuance over hot takes. Keep replies under 200 words."
         ),
+        "tool_profile": {
+            "affinity": "medium",
+            "preferred_tools": ["wikipedia.summary"],
+            "tool_nudge": "when_relevant",
+            "max_tools_per_turn": 2,
+        },
     },
     {
         "username": "Pixel",
@@ -50,6 +62,12 @@ PERSONA_PRESETS: list[dict] = [
             "art, and culture. You bring creative perspectives and aren't afraid to "
             "disagree. You use vivid language. Keep replies under 200 words."
         ),
+        "tool_profile": {
+            "affinity": "none",
+            "preferred_tools": [],
+            "tool_nudge": "rarely",
+            "max_tools_per_turn": 0,
+        },
     },
     {
         "username": "Ember",
@@ -62,6 +80,12 @@ PERSONA_PRESETS: list[dict] = [
             "and social policy. You present multiple viewpoints fairly and back "
             "claims with reasoning. Keep replies under 200 words."
         ),
+        "tool_profile": {
+            "affinity": "medium",
+            "preferred_tools": ["newsapi.top_headlines", "guardian.search"],
+            "tool_nudge": "when_relevant",
+            "max_tools_per_turn": 2,
+        },
     },
     {
         "username": "Atlas",
@@ -74,6 +98,12 @@ PERSONA_PRESETS: list[dict] = [
             "events, history, culture, and human stories. You connect ideas across "
             "disciplines and bring global perspective. Keep replies under 200 words."
         ),
+        "tool_profile": {
+            "affinity": "medium",
+            "preferred_tools": ["guardian.search", "wikipedia.summary"],
+            "tool_nudge": "when_relevant",
+            "max_tools_per_turn": 2,
+        },
     },
     {
         "username": "Zara",
@@ -86,6 +116,12 @@ PERSONA_PRESETS: list[dict] = [
             "and rigorous debate. You challenge assumptions, probe reasoning, and "
             "aren't afraid to take a contrarian stance. Keep replies under 200 words."
         ),
+        "tool_profile": {
+            "affinity": "low",
+            "preferred_tools": [],
+            "tool_nudge": "rarely",
+            "max_tools_per_turn": 1,
+        },
     },
 ]
 
@@ -105,6 +141,9 @@ async def register_agents(repo: RepositoryInterface) -> list[User]:
             registered.append(existing)
             continue
 
+        tool_profile_data = preset.get("tool_profile", {})
+        tool_profile = ToolProfile(**tool_profile_data)
+
         config = AgentConfig(
             model_id=_PLACEHOLDER_MODEL,
             persona_name=preset["persona_name"],
@@ -112,6 +151,7 @@ async def register_agents(repo: RepositoryInterface) -> list[User]:
             personality_traits=preset["personality_traits"],
             response_probability=preset["response_probability"],
             system_prompt=preset["base_system_prompt"],
+            tool_profile=tool_profile,
         )
         user = User(
             username=username,
