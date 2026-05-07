@@ -73,6 +73,48 @@ _TOOL_DEFINITIONS: list[dict[str, Any]] = [
     },
 ]
 
+_TOOL_TRIGGERS: dict[str, list[str]] = {
+    "weather.current": [
+        "weather", "temperature", "forecast", "cold", "hot", "warm",
+        "storm", "rain", "wind", "sunny", "outside", "climate today",
+        "degrees", "humidity",
+    ],
+    "wikipedia.summary": [
+        "who is", "what is", "when was", "where is", "history of",
+        "tell me about", "explain", "define", "biography", "wiki",
+        "wikipedia", "meaning of", "origin of",
+    ],
+    "hn.top_stories": [
+        "hacker news", "hackernews", "hn", "tech news", "trending",
+        "top stories", "what's new in tech", "startup news",
+        "show hn", "ask hn",
+    ],
+    "newsapi.top_headlines": [
+        "headlines", "breaking news", "latest news", "current events",
+        "top news", "news today", "what happened", "in the news",
+    ],
+    "guardian.search": [
+        "guardian", "uk news", "investigate", "reporting",
+        "journalism", "the guardian", "british news",
+    ],
+    "forum.news.latest": [
+        "forum news", "promoted", "recent threads",
+        "what's been posted", "forum activity",
+    ],
+    "meta.list_tools": [
+        "tool", "mcp", "available tools", "what tools",
+        "list tools", "capabilities",
+    ],
+}
+
+_RECENCY_INDICATORS: dict[str, list[str]] = {
+    "hn.top_stories": ["hacker news stories", "show hn", "hn:"],
+    "newsapi.top_headlines": ["headlines:", "breaking:"],
+    "guardian.search": ["guardian.com", "theguardian"],
+    "weather.current": ["temperature_c", "°c", "weather_code"],
+    "wikipedia.summary": ["according to wikipedia", "wikipedia.org"],
+}
+
 
 class MCPToolCatalog:
     """In-process MCP-style tool catalog and dispatcher for forum agents."""
@@ -133,27 +175,40 @@ class MCPToolCatalog:
             "result": result,
         }
 
-    def suggest_tools(self, text: str, max_tools: int = 2) -> list[str]:
+    def suggest_tools(
+        self,
+        text: str,
+        preferred_tools: list[str] | None = None,
+        recent_posts: list[str] | None = None,
+        max_tools: int = 2,
+    ) -> list[str]:
         text_lower = text.lower()
-        rules: list[tuple[tuple[str, ...], str]] = [
-            (("weather", "temperature", "forecast", "rain", "wind"), "weather.current"),
-            (("wikipedia", "who is", "what is", "history of"), "wikipedia.summary"),
-            (("hacker news", "hackernews", "hn"), "hn.top_stories"),
-            (("headline", "breaking news", "latest news"), "newsapi.top_headlines"),
-            (("guardian",), "guardian.search"),
-            (("forum news", "promoted", "threads"), "forum.news.latest"),
-            (("tool", "mcp", "available tools"), "meta.list_tools"),
-        ]
+        scores: dict[str, float] = {}
 
-        picks: list[str] = []
-        for keywords, tool_name in rules:
-            if tool_name in picks:
-                continue
-            if any(keyword in text_lower for keyword in keywords):
-                picks.append(tool_name)
-            if len(picks) >= max_tools:
-                break
-        return picks
+        for tool_name, triggers in _TOOL_TRIGGERS.items():
+            score = 0.0
+            for trigger in triggers:
+                if trigger in text_lower:
+                    score += 1.0
+            if score > 0:
+                scores[tool_name] = score
+
+        if preferred_tools:
+            for tool_name in preferred_tools:
+                scores[tool_name] = scores.get(tool_name, 0.0) + 0.5
+
+        if recent_posts:
+            combined_recent = " ".join(recent_posts).lower()
+            for tool_name, indicators in _RECENCY_INDICATORS.items():
+                if tool_name in scores:
+                    for indicator in indicators:
+                        if indicator in combined_recent:
+                            scores[tool_name] -= 0.3
+                            break
+
+        scored = [(score, name) for name, score in scores.items() if score > 0]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [name for _, name in scored[:max_tools]]
 
     async def _meta_list_tools(self, arguments: dict[str, Any]) -> dict[str, Any]:
         _ = arguments

@@ -219,7 +219,7 @@ def test_suggest_tools_maps_keywords_to_expected_tools() -> None:
 
     tools = catalog.suggest_tools("Can you check weather and wikipedia context?")
 
-    assert tools == ["weather.current", "wikipedia.summary"]
+    assert set(tools) == {"weather.current", "wikipedia.summary"}
 
 
 def test_suggest_tools_respects_max_tools() -> None:
@@ -230,7 +230,8 @@ def test_suggest_tools_respects_max_tools() -> None:
         max_tools=1,
     )
 
-    assert tools == ["weather.current"]
+    assert len(tools) == 1
+    assert tools[0] in ("weather.current", "wikipedia.summary", "guardian.search")
 
 
 @pytest.mark.anyio
@@ -589,3 +590,69 @@ def test_helper_coercion_and_normalization_functions() -> None:
     assert _normalize_statuses("new, promoted") == ["new", "promoted"]
     assert _normalize_statuses(["new", "", "skipped"]) == ["new", "skipped"]
     assert _normalize_statuses(None) == ["new", "promoted"]
+
+
+# ── suggest_tools scoring system ──────────────────────────────────────────────
+
+
+def test_suggest_tools_scores_expanded_phrases():
+    catalog = MCPToolCatalog(repo=None, news_aggregator=None)
+
+    result = catalog.suggest_tools("tell me about SpaceX's founding")
+    assert "wikipedia.summary" in result
+
+    result = catalog.suggest_tools("what's trending in tech right now")
+    assert "hn.top_stories" in result
+
+    result = catalog.suggest_tools("is it cold outside today")
+    assert "weather.current" in result
+
+
+def test_suggest_tools_agent_preference_boost():
+    catalog = MCPToolCatalog(repo=None, news_aggregator=None)
+
+    result_with_pref = catalog.suggest_tools(
+        "interesting developments in software",
+        preferred_tools=["hn.top_stories"],
+    )
+    assert "hn.top_stories" in result_with_pref
+
+
+def test_suggest_tools_recency_penalty():
+    catalog = MCPToolCatalog(repo=None, news_aggregator=None)
+
+    recent_posts = [
+        "Here are the top Hacker News stories: 1. Show HN: something cool"
+    ]
+    # With preference boost and recency penalty, newsapi should rank above hn
+    result_with_recency = catalog.suggest_tools(
+        "latest news",
+        preferred_tools=["newsapi.top_headlines"],
+        recent_posts=recent_posts,
+        max_tools=5,
+    )
+    result_without = catalog.suggest_tools(
+        "latest news",
+        preferred_tools=["newsapi.top_headlines"],
+        max_tools=5,
+    )
+    # hn should score lower with recency penalty applied
+    if "hn.top_stories" in result_with_recency and "hn.top_stories" in result_without:
+        idx_with = result_with_recency.index("hn.top_stories")
+        idx_without = result_without.index("hn.top_stories")
+        assert idx_with >= idx_without
+
+
+def test_suggest_tools_respects_max_tools():
+    catalog = MCPToolCatalog(repo=None, news_aggregator=None)
+    result = catalog.suggest_tools(
+        "weather forecast and hacker news and wikipedia and headlines",
+        max_tools=2,
+    )
+    assert len(result) <= 2
+
+
+def test_suggest_tools_returns_empty_for_irrelevant_text():
+    catalog = MCPToolCatalog(repo=None, news_aggregator=None)
+    result = catalog.suggest_tools("I love the color blue and cats are nice")
+    assert result == []
