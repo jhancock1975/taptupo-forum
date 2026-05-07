@@ -14,6 +14,13 @@ def _new_id() -> str:
     return str(uuid.uuid4())
 
 
+class ToolProfile(BaseModel):
+    affinity: str = "medium"
+    preferred_tools: list[str] = []
+    tool_nudge: str = "when_relevant"
+    max_tools_per_turn: int = 1
+
+
 class AgentConfig(BaseModel):
     model_id: str
     persona_name: str
@@ -32,6 +39,7 @@ class AgentConfig(BaseModel):
     model_params: str = ""  # e.g. "21B MoE (3.6B active)"
     output_modality: str = "text"  # "text", "image", etc.
     provider: str = "openrouter"  # "openrouter" or "huggingface"
+    tool_profile: ToolProfile = Field(default_factory=ToolProfile)
 
 
 class User(BaseModel):

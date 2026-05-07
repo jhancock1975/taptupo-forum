@@ -10,7 +10,7 @@ from app.agents import base_agent, discussion, registry
 from app.agents.base_agent import BaseAgent, _tokenize
 from app.agents.discussion import DiscussionEngine
 from app.agents.news_agent import NewsAgent
-from app.models.schemas import AgentConfig, NewsItem, Post, Thread, User
+from app.models.schemas import AgentConfig, NewsItem, Post, Thread, ToolProfile, User
 
 
 def agent_config(**overrides: Any) -> AgentConfig:
@@ -943,3 +943,42 @@ async def test_call_llm_hf_invokes_llm_with_hf_key(
     result = await agent._call_llm([{"role": "user", "content": "hello"}])
     assert result == "HF reply"
     mock_llm.ainvoke.assert_called_once()
+
+
+# ── ToolProfile ───────────────────────────────────────────────────────────────
+
+
+def test_tool_profile_defaults():
+    profile = ToolProfile()
+    assert profile.affinity == "medium"
+    assert profile.preferred_tools == []
+    assert profile.tool_nudge == "when_relevant"
+    assert profile.max_tools_per_turn == 1
+
+
+def test_agent_config_has_tool_profile():
+    config = AgentConfig(
+        model_id="test/model",
+        persona_name="Bot",
+        system_prompt="Be useful.",
+    )
+    assert config.tool_profile is not None
+    assert config.tool_profile.affinity == "medium"
+
+
+def test_agent_config_custom_tool_profile():
+    profile = ToolProfile(
+        affinity="high",
+        preferred_tools=["hn.top_stories", "wikipedia.summary"],
+        tool_nudge="always",
+        max_tools_per_turn=2,
+    )
+    config = AgentConfig(
+        model_id="test/model",
+        persona_name="Maven",
+        system_prompt="Be resourceful.",
+        tool_profile=profile,
+    )
+    assert config.tool_profile.affinity == "high"
+    assert config.tool_profile.max_tools_per_turn == 2
+    assert "hn.top_stories" in config.tool_profile.preferred_tools
