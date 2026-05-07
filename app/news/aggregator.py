@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import structlog
 
-from app.db.interface import RepositoryInterface
+from app.config import settings
+from app.news.arxiv import ArxivFetcher
+from app.news.guardian import GuardianFetcher
 from app.news.hackernews import HackerNewsFetcher
-from app.news.interface import NewsFetcher
+
+if TYPE_CHECKING:
+    from app.db.interface import RepositoryInterface
+    from app.news.interface import NewsFetcher
 
 logger = structlog.get_logger()
 
@@ -14,7 +21,10 @@ class NewsAggregator:
         self._repo = repo
         self._fetchers: list[NewsFetcher] = [
             HackerNewsFetcher(),
+            ArxivFetcher(),
         ]
+        if settings.guardian_api_key:
+            self._fetchers.append(GuardianFetcher())
 
     def register_fetcher(self, fetcher: NewsFetcher) -> None:
         self._fetchers.append(fetcher)

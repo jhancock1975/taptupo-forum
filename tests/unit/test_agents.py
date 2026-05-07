@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -65,6 +66,37 @@ class AgentRepo:
 
     async def list_threads(self, limit: int = 50) -> list[Thread]:
         return self.all_threads[:limit]
+
+
+class FakeToolCatalog:
+    def __init__(
+        self,
+        responses: dict[str, Any] | None = None,
+        suggestions: list[str] | None = None,
+    ) -> None:
+        self.responses = responses or {}
+        self.suggestions = suggestions or []
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def invoke(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        args = arguments or {}
+        self.calls.append((tool_name, args))
+        response = self.responses.get(tool_name)
+        if response is not None:
+            if callable(response):
+                return response(args)
+            return response
+        if tool_name == "meta.list_tools":
+            return {"ok": True, "tool": tool_name, "result": {"tools": []}}
+        return {"ok": False, "tool": tool_name, "error": "unknown_tool"}
+
+    def suggest_tools(self, text: str, max_tools: int = 2) -> list[str]:
+        _ = text
+        return self.suggestions[:max_tools]
 
 
 def test_base_agent_requires_config() -> None:
@@ -483,6 +515,250 @@ async def test_maybe_respond_creates_trimmed_reply(
     assert any("Unknown:" in message["content"] for message in captured["messages"])
 
 
+@pytest.mark.anyio
+async def test_maybe_respond_includes_meta_tool_list_in_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = agent_user()
+    human = User(user_id="human", username="Alice")
+    repo = AgentRepo()
+    repo.thread = Thread(thread_id="thread-1", title="Python", created_by=human.user_id)
+    repo.posts = [Post(thread_id="thread-1", author_id=human.user_id, content="hello")]
+    repo.users[human.user_id] = human
+
+    tool_catalog = FakeToolCatalog(
+        responses={
+            "meta.list_tools": {
+                "ok": True,
+                "tool": "meta.list_tools",
+                "result": {
+                    "tools": [
+                        {
+                            "name": "weather.current",
+                            "description": "Get current weather.",
+                        }
+                    ]
+                },
+            }
+        }
+    )
+    agent = BaseAgent(user, repo, tool_catalog=tool_catalog)  # type: ignore[arg-type]
+    monkeypatch.setattr(agent, "_should_respond", lambda: True)
+    captured: dict[str, list[dict[str, str]]] = {}
+
+    async def reply(messages: list[dict[str, str]]) -> str:
+        captured["messages"] = messages
+        return "Forecasts are helpful here."
+
+    monkeypatch.setattr(agent, "_call_llm", reply)
+
+    parent = Post(thread_id="thread-1", author_id=human.user_id, content="Any updates?")
+    result = await agent.maybe_respond("thread-1", parent)
+
+    assert result is not None
+    assert result.content == "Forecasts are helpful here."
+    assert tool_catalog.calls[0][0] == "meta.list_tools"
+    prompt_text = captured["messages"][1]["content"]
+    assert "Available tools from the meta.list_tools service" in prompt_text
+    assert "weather.current" in prompt_text
+
+
+@pytest.mark.anyio
+async def test_maybe_respond_prefers_suggested_tools_in_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = agent_user()
+    human = User(user_id="human", username="Alice")
+    repo = AgentRepo()
+    repo.thread = Thread(
+        thread_id="thread-1",
+        title="Berlin weather",
+        created_by=human.user_id,
+    )
+    repo.posts = [
+        Post(thread_id="thread-1", author_id=human.user_id, content="Need weather info")
+    ]
+    repo.users[human.user_id] = human
+
+    tool_catalog = FakeToolCatalog(
+        responses={
+            "meta.list_tools": {
+                "ok": True,
+                "tool": "meta.list_tools",
+                "result": {
+                    "tools": [
+                        {
+                            "name": "weather.current",
+                            "description": "Get current weather.",
+                        },
+                        {
+                            "name": "wikipedia.summary",
+                            "description": "Fetch a concise summary for a topic.",
+                        },
+                    ]
+                },
+            }
+        },
+        suggestions=["weather.current"],
+    )
+    agent = BaseAgent(user, repo, tool_catalog=tool_catalog)  # type: ignore[arg-type]
+    monkeypatch.setattr(agent, "_should_respond", lambda: True)
+    captured: dict[str, list[dict[str, str]]] = {}
+
+    async def reply(messages: list[dict[str, str]]) -> str:
+        captured["messages"] = messages
+        return "Berlin weather is worth checking."
+
+    monkeypatch.setattr(agent, "_call_llm", reply)
+
+    parent = Post(
+        thread_id="thread-1",
+        author_id=human.user_id,
+        content="What's the weather now?",
+    )
+    result = await agent.maybe_respond("thread-1", parent)
+
+    assert result is not None
+    prompt_text = captured["messages"][1]["content"]
+    assert "Strong tool candidates for this thread" in prompt_text
+    assert "- Suggested: weather.current: Get current weather." in prompt_text
+    assert "prefer using it instead of guessing" in prompt_text
+
+
+@pytest.mark.anyio
+async def test_maybe_respond_executes_tool_request_and_second_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = agent_user()
+    human = User(user_id="human", username="Alice")
+    repo = AgentRepo()
+    repo.thread = Thread(
+        thread_id="thread-1",
+        title="Berlin weather",
+        created_by="human",
+    )
+    repo.posts = [
+        Post(thread_id="thread-1", author_id=human.user_id, content="Need weather info")
+    ]
+    repo.users[human.user_id] = human
+
+    tool_catalog = FakeToolCatalog(
+        responses={
+            "meta.list_tools": {
+                "ok": True,
+                "tool": "meta.list_tools",
+                "result": {
+                    "tools": [
+                        {
+                            "name": "weather.current",
+                            "description": "Get current weather.",
+                        }
+                    ]
+                },
+            },
+            "weather.current": {
+                "ok": True,
+                "tool": "weather.current",
+                "result": {"temperature_c": 21, "location": "Berlin"},
+            },
+        }
+    )
+    agent = BaseAgent(user, repo, tool_catalog=tool_catalog)  # type: ignore[arg-type]
+    monkeypatch.setattr(agent, "_should_respond", lambda: True)
+
+    mock_llm = AsyncMock(
+        side_effect=[
+            (
+                "I'll check real-time weather.\n"
+                'TOOL_REQUEST: weather.current | {"location": "Berlin"}'
+            ),
+            "Berlin is about 21C right now.",
+        ]
+    )
+    monkeypatch.setattr(agent, "_call_llm", mock_llm)
+
+    parent = Post(
+        thread_id="thread-1",
+        author_id=human.user_id,
+        content="What's the weather now?",
+    )
+    result = await agent.maybe_respond("thread-1", parent)
+
+    assert result is not None
+    assert result.content == "Berlin is about 21C right now."
+    assert mock_llm.await_count == 2
+    assert tool_catalog.calls == [
+        ("meta.list_tools", {}),
+        ("weather.current", {"location": "Berlin"}),
+    ]
+    second_call_messages = mock_llm.await_args_list[1].args[0]
+    assert all(message["role"] != "assistant" for message in second_call_messages[2:])
+    assert "Do not mention using a tool" in second_call_messages[-1]["content"]
+
+
+@pytest.mark.anyio
+async def test_maybe_respond_drops_tool_draft_when_follow_up_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = agent_user()
+    human = User(user_id="human", username="Alice")
+    repo = AgentRepo()
+    repo.thread = Thread(
+        thread_id="thread-1",
+        title="Berlin weather",
+        created_by="human",
+    )
+    repo.posts = [
+        Post(thread_id="thread-1", author_id=human.user_id, content="Need weather info")
+    ]
+    repo.users[human.user_id] = human
+
+    tool_catalog = FakeToolCatalog(
+        responses={
+            "meta.list_tools": {
+                "ok": True,
+                "tool": "meta.list_tools",
+                "result": {
+                    "tools": [
+                        {
+                            "name": "weather.current",
+                            "description": "Get current weather.",
+                        }
+                    ]
+                },
+            },
+            "weather.current": {
+                "ok": True,
+                "tool": "weather.current",
+                "result": {"temperature_c": 21, "location": "Berlin"},
+            },
+        }
+    )
+    agent = BaseAgent(user, repo, tool_catalog=tool_catalog)  # type: ignore[arg-type]
+    monkeypatch.setattr(agent, "_should_respond", lambda: True)
+
+    mock_llm = AsyncMock(
+        side_effect=[
+            (
+                "I'll check real-time weather first.\n"
+                'TOOL_REQUEST: weather.current | {"location": "Berlin"}'
+            ),
+            None,
+        ]
+    )
+    monkeypatch.setattr(agent, "_call_llm", mock_llm)
+
+    parent = Post(
+        thread_id="thread-1",
+        author_id=human.user_id,
+        content="What's the weather now?",
+    )
+    result = await agent.maybe_respond("thread-1", parent)
+
+    assert result is None
+    assert repo.created_posts == []
+
+
 class RenderTemplate:
     def render(self, **context: object) -> str:
         return f"rendered:{context['post'].post_id}"
@@ -628,8 +904,9 @@ class NewsRepo:
 
 
 @pytest.mark.anyio
-async def test_news_agent_promotes_limited_items_and_skips_remaining() -> None:
+async def test_news_agent_promotes_limited_items_without_skipping_remaining() -> None:
     long_content = "x" * 350
+    base_time = datetime(2026, 5, 3, 23, 0, tzinfo=UTC)
     items = [
         NewsItem(
             item_id="n1",
@@ -637,6 +914,7 @@ async def test_news_agent_promotes_limited_items_and_skips_remaining() -> None:
             title="Long",
             url="https://one",
             raw_content=long_content,
+            fetched_at=base_time,
         ),
         NewsItem(
             item_id="n2",
@@ -644,9 +922,14 @@ async def test_news_agent_promotes_limited_items_and_skips_remaining() -> None:
             title="Empty",
             url="https://two",
             raw_content=None,
+            fetched_at=base_time - timedelta(minutes=1),
         ),
         NewsItem(
-            item_id="n3", source="hackernews", title="Skipped", url="https://three"
+            item_id="n3",
+            source="hackernews",
+            title="Skipped",
+            url="https://three",
+            fetched_at=base_time - timedelta(minutes=2),
         ),
     ]
     repo = NewsRepo(items)
@@ -665,7 +948,52 @@ async def test_news_agent_promotes_limited_items_and_skips_remaining() -> None:
     assert repo.status_updates == [
         ("n1", "promoted", threads[0].thread_id),
         ("n2", "promoted", threads[1].thread_id),
-        ("n3", "skipped", None),
+    ]
+
+
+@pytest.mark.anyio
+async def test_news_agent_round_robins_sources_when_promoting() -> None:
+    base_time = datetime(2026, 5, 3, 23, 0, tzinfo=UTC)
+    items = [
+        NewsItem(
+            item_id="hn1",
+            source="hackernews",
+            title="HN newest",
+            url="https://hn1",
+            fetched_at=base_time,
+        ),
+        NewsItem(
+            item_id="hn2",
+            source="hackernews",
+            title="HN older",
+            url="https://hn2",
+            fetched_at=base_time - timedelta(minutes=3),
+        ),
+        NewsItem(
+            item_id="g1",
+            source="guardian",
+            title="Guardian",
+            url="https://g1",
+            fetched_at=base_time - timedelta(minutes=1),
+        ),
+        NewsItem(
+            item_id="a1",
+            source="arxiv",
+            title="Arxiv",
+            url="https://a1",
+            fetched_at=base_time - timedelta(minutes=2),
+        ),
+    ]
+    repo = NewsRepo(items)
+    user = agent_user(username="Nova")
+    agent = NewsAgent(user, repo)  # type: ignore[arg-type]
+
+    threads = await agent.promote_news(max_items=3)
+
+    assert [thread.source_type for thread in threads] == [
+        "hackernews",
+        "guardian",
+        "arxiv",
     ]
 
 
@@ -700,6 +1028,13 @@ async def test_register_agents_reuses_existing_and_creates_missing(
         "Ember",
         "Atlas",
         "Zara",
+        "Rook",
+        "Lyra",
+        "Quill",
+        "Sol",
+        "Forge",
+        "Delta",
+        "Maven",
     ]
     assert all(
         user.password_hash == f"hashed:{user.username}_agent_secret" for user in created
@@ -1002,3 +1337,12 @@ def test_pixel_has_no_tool_affinity():
     pixel = next(p for p in PERSONA_PRESETS if p["username"] == "Pixel")
     assert pixel["tool_profile"]["affinity"] == "none"
     assert pixel["tool_profile"]["max_tools_per_turn"] == 0
+
+
+def test_maven_has_high_affinity():
+    from app.agents.registry import PERSONA_PRESETS
+
+    maven = next(p for p in PERSONA_PRESETS if p["username"] == "Maven")
+    assert maven["tool_profile"]["affinity"] == "high"
+    assert maven["tool_profile"]["tool_nudge"] == "always"
+    assert maven["tool_profile"]["max_tools_per_turn"] == 2

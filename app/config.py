@@ -19,9 +19,18 @@ class Settings(BaseSettings):
     db_size_limit_mb: int = 100
     model_refresh_interval_hours: int = 6
     news_fetch_interval_minutes: int = 45
-    agent_reply_jitter_min_seconds: int = 10
-    agent_reply_jitter_max_seconds: int = 45
-    agent_seed_reply_post_count: int = 2
+    arxiv_search_query: str = (
+        "cat:cs.AI OR cat:cs.CL OR cat:cs.LG OR cat:stat.ML"
+    )
+    arxiv_max_results: int = 5
+    arxiv_request_interval_seconds: float = 3.0
+    guardian_request_interval_seconds: float = 86400 / 500
+    redis_url: str = ""
+    hn_topstories_cache_ttl_seconds: int = 900
+    hn_story_cache_ttl_seconds: int = 3600
+    agent_reply_jitter_min_seconds: int = 4
+    agent_reply_jitter_max_seconds: int = 18
+    agent_seed_reply_post_count: int = 4
 
     # S3 / MinIO media storage
     s3_endpoint: str = "http://localhost:9000"  # override to "" for real AWS S3

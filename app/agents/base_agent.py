@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import random
 import re
 import uuid
+from typing import Any
 
 import httpx
 import structlog
@@ -13,6 +15,7 @@ from langchain_openai import ChatOpenAI
 
 from app.config import settings
 from app.db.interface import RepositoryInterface
+from app.mcp.catalog import MCPToolCatalog
 from app.models.schemas import Post, Thread, User
 
 logger = structlog.get_logger()
@@ -40,6 +43,10 @@ _ROLE_TO_MESSAGE: dict[str, type[BaseMessage]] = {
 _MAX_RELATED_THREADS = 3
 _MAX_POSTS_PER_RELATED_THREAD = 3
 _MAX_SNIPPET_CHARS = 200
+
+_TOOL_REQUEST_RE = re.compile(
+    r"^TOOL_REQUEST:\s*([a-zA-Z0-9_.-]+)\s*\|\s*(\{.*\})\s*$"
+)
 
 _STOP_WORDS: frozenset[str] = frozenset(
     {
@@ -101,6 +108,7 @@ class BaseAgent:
         user: User,
         repo: RepositoryInterface,
         llm_semaphore: asyncio.Semaphore | None = None,
+        tool_catalog: MCPToolCatalog | None = None,
     ) -> None:
         self.user = user
         self.repo = repo
@@ -110,6 +118,7 @@ class BaseAgent:
         self._llm_semaphore = (
             llm_semaphore if llm_semaphore is not None else asyncio.Semaphore(1)
         )
+        self._tool_catalog = tool_catalog
         if self.config.provider == "huggingface":
             api_base = HF_INFERENCE_BASE
             api_key = settings.huggingface_api_key or "no-key"
@@ -178,6 +187,42 @@ class BaseAgent:
             if posts:
                 related.append((t, posts[:_MAX_POSTS_PER_RELATED_THREAD]))
         return related
+
+    def _parse_tool_request(self, text: str) -> tuple[str, dict[str, Any]] | None:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if not lines:
+            return None
+        last = lines[-1]
+        match = _TOOL_REQUEST_RE.match(last)
+        if not match:
+            return None
+
+        tool_name = match.group(1)
+        raw_args = match.group(2)
+        try:
+            parsed = json.loads(raw_args)
+        except json.JSONDecodeError:
+            logger.warning(
+                "tool_request_json_invalid",
+                agent=self.user.username,
+                tool=tool_name,
+            )
+            parsed = {}
+
+        args: dict[str, Any] = {}
+        if isinstance(parsed, dict):
+            for key, value in parsed.items():
+                args[str(key)] = value
+        return tool_name, args
+
+    @staticmethod
+    def _strip_tool_request_lines(text: str) -> str:
+        cleaned = [
+            line
+            for line in text.splitlines()
+            if not line.strip().startswith("TOOL_REQUEST:")
+        ]
+        return "\n".join(cleaned).strip()
 
     async def _generate_media(self, prompt: str) -> tuple[bytes, str] | None:
         """Call OpenRouter images/generations endpoint and return (data, mime_type).
@@ -276,9 +321,65 @@ class BaseAgent:
                     snippet = rp.content[:_MAX_SNIPPET_CHARS].replace("\n", " ")
                     conversation_lines.append(f"    {rel_name}: {snippet}")
 
+        if self._tool_catalog is not None:
+            tool_list_response = await self._tool_catalog.invoke("meta.list_tools", {})
+            tool_result = tool_list_response.get("result", {})
+            raw_tools = tool_result.get("tools", []) if isinstance(tool_result, dict) else []
+            if isinstance(raw_tools, list) and raw_tools:
+                tool_descriptions: dict[str, str] = {}
+                tool_context = "\n".join(
+                    [thread.title, post.content, *(p.content for p in posts[-3:])]
+                )
+                suggested_tools = self._tool_catalog.suggest_tools(tool_context)
+                conversation_lines.append("")
+                conversation_lines.append(
+                    "Use one relevant MCP tool when it helps verify factual, current, "
+                    "or external claims before replying."
+                )
+                if suggested_tools:
+                    conversation_lines.append(
+                        "Strong tool candidates for this thread:"
+                    )
+                    for tool_name in suggested_tools:
+                        conversation_lines.append(f"- {tool_name}")
+                conversation_lines.append(
+                    "If you need one tool call, end your draft with exactly one line in this format:"
+                )
+                conversation_lines.append(
+                    'TOOL_REQUEST: <tool_name> | {"arg": "value"}'
+                )
+                conversation_lines.append(
+                    "Available tools from the meta.list_tools service:"
+                )
+                for tool in raw_tools:
+                    if not isinstance(tool, dict):
+                        continue
+                    name = str(tool.get("name", "")).strip()
+                    description = str(tool.get("description", "")).strip()
+                    if not name:
+                        continue
+                    tool_descriptions[name] = description
+                    if description:
+                        conversation_lines.append(f"- {name}: {description}")
+                    else:
+                        conversation_lines.append(f"- {name}")
+                if suggested_tools:
+                    conversation_lines.append("")
+                    conversation_lines.append(
+                        "If one of the suggested tools fits, prefer using it instead "
+                        "of guessing."
+                    )
+                    for tool_name in suggested_tools:
+                        description = tool_descriptions.get(tool_name, "")
+                        if description:
+                            conversation_lines.append(
+                                f"- Suggested: {tool_name}: {description}"
+                            )
+
         conversation_lines.append("")
         conversation_lines.append(
-            "Write your reply to this discussion. Be conversational and natural."
+            "Write your reply to this discussion. Prefer one relevant tool call over "
+            "guessing, but if no tool is useful, reply normally."
         )
 
         conversation: list[dict[str, str]] = [
@@ -332,10 +433,40 @@ class BaseAgent:
         if not reply_text:
             return None
 
+        if self._tool_catalog is not None:
+            tool_request = self._parse_tool_request(reply_text)
+            if tool_request is not None:
+                tool_name, tool_args = tool_request
+                tool_response = await self._tool_catalog.invoke(tool_name, tool_args)
+                follow_up_prompt = (
+                    f"You requested tool '{tool_name}'. Here is the JSON tool response:\n"
+                    f"{json.dumps(tool_response, ensure_ascii=True)}\n"
+                    "Write the final forum reply using this result when helpful. "
+                    "Do not mention using a tool, checking a tool, internal reasoning, "
+                    "or any draft/planning language in the final reply."
+                )
+                follow_up_messages = [
+                    *conversation,
+                    {"role": "user", "content": follow_up_prompt},
+                ]
+                final_reply = await self._call_llm(follow_up_messages)
+                if not final_reply:
+                    logger.warning(
+                        "tool_follow_up_failed",
+                        agent=self.user.username,
+                        tool=tool_name,
+                    )
+                    return None
+                reply_text = final_reply
+
+        cleaned_reply = self._strip_tool_request_lines(reply_text)
+        if not cleaned_reply:
+            return None
+
         reply = Post(
             thread_id=thread_id,
             author_id=self.user.user_id,
-            content=reply_text.strip(),
+            content=cleaned_reply,
             parent_post_id=post.post_id,
         )
         await self.repo.create_post(reply)

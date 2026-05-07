@@ -30,6 +30,19 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   app:
     build: .
     ports:
@@ -43,6 +56,7 @@ services:
       - S3_REGION=us-east-1
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
+      - REDIS_URL=redis://redis:6379/0
       - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY:-}
     env_file:
       - .env
@@ -50,6 +64,8 @@ services:
       dynamodb-local:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     develop:
       watch:
@@ -64,3 +80,4 @@ services:
 volumes:
   dynamodb-data:
   minio-data:
+  redis-data:

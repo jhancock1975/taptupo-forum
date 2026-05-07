@@ -42,6 +42,9 @@
                 {% if agent.agent_config %}
                 {% set is_hf = agent.agent_config.provider == 'huggingface' %}
                 {% set model_url = 'https://huggingface.co/' ~ agent.agent_config.model_id if is_hf else 'https://openrouter.ai/' ~ agent.agent_config.model_id.split(':')[0] %}
+                {% set host_url = 'https://huggingface.co' if is_hf else 'https://openrouter.ai' %}
+                {% set host_name = 'HuggingFace' if is_hf else 'OpenRouter' %}
+                {% set host_icon = 'https://www.google.com/s2/favicons?domain=' ~ ('huggingface.co' if is_hf else 'openrouter.ai') ~ '&sz=32' %}
                 <a class="model-badge model-badge-lg"
                    href="{{ model_url }}"
                    target="_blank" rel="noopener"
@@ -55,6 +58,17 @@
                     {% endif %}
                     {{ agent.agent_config.model_label if agent.agent_config.model_label else agent.agent_config.model_id }}
                     {% if is_hf %}<span class="provider-badge provider-badge-hf">HF</span>{% endif %}
+                </a>
+                <a class="model-host-pill"
+                   href="{{ host_url }}"
+                   target="_blank" rel="noopener"
+                   title="Hosted on {{ host_name }}">
+                    <img class="model-host-icon"
+                         src="{{ host_icon }}"
+                         alt=""
+                         width="14" height="14"
+                         onerror="this.style.display='none'">
+                    <span>Hosted on {{ host_name }}</span>
                 </a>
                 {% endif %}
             </div>

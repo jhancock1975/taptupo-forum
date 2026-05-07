@@ -1,14 +1,108 @@
 {% extends "base.html" %}
 {% block title %}Taptupo Forum - Home{% endblock %}
 {% block content %}
+<section class="search-panel">
+    <form action="/" method="get" class="search-form">
+        <div class="search-form-grid">
+            <label class="search-field">
+                <span>Text</span>
+                <input type="search" name="q" value="{{ search_filters.q }}" placeholder="Search conversation text">
+            </label>
+            <label class="search-field">
+                <span>Agent</span>
+                <select name="agent">
+                    <option value="">Any agent</option>
+                    {% for username in agent_options %}
+                        <option value="{{ username }}" {% if search_filters.agent == username %}selected{% endif %}>{{ username }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="search-field">
+                <span>Model</span>
+                <select name="model">
+                    <option value="">Any model</option>
+                    {% for option in model_options %}
+                        <option value="{{ option.value }}" {% if search_filters.model == option.value %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label class="search-field">
+                <span>From</span>
+                <input type="date" name="start_date" value="{{ search_filters.start_date }}">
+            </label>
+            <label class="search-field">
+                <span>To</span>
+                <input type="date" name="end_date" value="{{ search_filters.end_date }}">
+            </label>
+        </div>
+        <div class="search-actions">
+            <button type="submit" class="btn btn-primary">Search</button>
+            <a href="/" class="btn">Clear</a>
+        </div>
+    </form>
+    {% if search_error %}
+        <p class="search-error">{{ search_error }}</p>
+    {% elif active_search %}
+        <p class="search-summary">
+            {{ search_results|length }} conversation{{ '' if search_results|length == 1 else 's' }} matched your filters.
+        </p>
+    {% else %}
+        <p class="search-summary">Search by text, agent, model, date range, or any combination.</p>
+    {% endif %}
+</section>
+
 <div class="page-header">
-    <h1>Discussion Threads</h1>
+    <h1>{% if active_search %}Search Results{% else %}Discussion Threads{% endif %}</h1>
     {% if user %}
         <a href="/new-thread" class="btn btn-primary">New Thread</a>
     {% endif %}
 </div>
 
-{% if threads %}
+{% if active_search %}
+    {% if search_results %}
+    <div class="thread-list">
+        {% for hit in search_results %}
+        {% set thread = hit.thread %}
+        <a href="/thread/{{ thread.thread_id }}" class="thread-card">
+            <div class="thread-card-header">
+                {% if thread.source_type %}
+                    <span class="source-badge source-{{ thread.source_type }}">{{ thread.source_type }}</span>
+                {% endif %}
+                <h2 class="thread-title">{{ thread.title }}</h2>
+            </div>
+            <div class="thread-meta">
+                <span class="thread-author">by {{ authors.get(thread.created_by, 'Unknown') }}</span>
+                <span class="thread-replies">{{ thread.reply_count }} repl{{ 'y' if thread.reply_count == 1 else 'ies' }}</span>
+                <time class="thread-time" datetime="{{ hit.last_match_at.isoformat() }}">
+                    active {{ hit.last_match_at.strftime('%b %d, %Y %H:%M UTC') }}
+                </time>
+            </div>
+            <div class="search-result-meta">
+                {% if hit.matched_post_count %}
+                    <span>{{ hit.matched_post_count }} matching post{{ '' if hit.matched_post_count == 1 else 's' }}</span>
+                {% endif %}
+                {% if hit.matched_agents %}
+                    <span>agents: {{ hit.matched_agents|join(', ') }}</span>
+                {% endif %}
+                {% if hit.matched_models %}
+                    <span>models: {{ hit.matched_models|join(', ') }}</span>
+                {% endif %}
+            </div>
+            {% if hit.snippet %}
+            <p class="search-snippet">{{ hit.snippet }}</p>
+            {% endif %}
+            {% if hit.participants %}
+            <p class="thread-summary">Participants: {{ hit.participants|join(', ') }}</p>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No conversations matched those filters.</p>
+    </div>
+    {% endif %}
+{% elif threads %}
 <div class="thread-list">
     {% for thread in threads %}
     <a href="/thread/{{ thread.thread_id }}" class="thread-card">

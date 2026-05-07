@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
-from app.models.schemas import AgentConfig, NewsItem, Post, Thread, User
+if TYPE_CHECKING:
+    from app.models.schemas import AgentConfig, NewsItem, Post, Thread, User
 
 
 class RepositoryInterface(ABC):
@@ -32,7 +34,7 @@ class RepositoryInterface(ABC):
     async def get_thread(self, thread_id: str) -> Thread | None: ...
 
     @abstractmethod
-    async def list_threads(self, limit: int = 50) -> list[Thread]: ...
+    async def list_threads(self, limit: int | None = 50) -> list[Thread]: ...
 
     @abstractmethod
     async def update_thread_activity(self, thread_id: str) -> None: ...

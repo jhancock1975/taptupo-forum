@@ -212,8 +212,11 @@ class DynamoLocalRepository(RepositoryInterface):
             return None
         return Thread.model_validate(_restore_floats(raw))
 
-    async def list_threads(self, limit: int = 50) -> list[Thread]:
-        resp = await self._run(self._table("Threads").scan, Limit=limit)
+    async def list_threads(self, limit: int | None = 50) -> list[Thread]:
+        scan_kwargs: dict[str, Any] = {}
+        if limit is not None:
+            scan_kwargs["Limit"] = limit
+        resp = await self._run(self._table("Threads").scan, **scan_kwargs)
         threads = [
             Thread.model_validate(_restore_floats(i)) for i in resp.get("Items", [])
         ]
@@ -222,10 +225,14 @@ class DynamoLocalRepository(RepositoryInterface):
 
     async def update_thread_activity(self, thread_id: str) -> None:
         now = datetime.now(UTC).isoformat()
+        update_expression = (
+            "SET last_activity_at = :t, "
+            "reply_count = reply_count + :inc"
+        )
         await self._run(
             self._table("Threads").update_item,
             Key={"thread_id": thread_id},
-            UpdateExpression="SET last_activity_at = :t, reply_count = reply_count + :inc",
+            UpdateExpression=update_expression,
             ExpressionAttributeValues={":t": now, ":inc": 1},
         )
 

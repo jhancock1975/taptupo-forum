@@ -8,6 +8,7 @@ import structlog
 from app.agents.base_agent import BaseAgent
 from app.config import settings
 from app.db.interface import RepositoryInterface
+from app.mcp.catalog import MCPToolCatalog
 from app.models.schemas import Post, User
 from app.routes.websocket import ConnectionManager
 
@@ -21,11 +22,20 @@ class DiscussionEngine:
         agents: list[User],
         ws_manager: ConnectionManager,
         templates: object,
+        tool_catalog: MCPToolCatalog | None = None,
     ) -> None:
         self._repo = repo
         self._llm_semaphore = asyncio.Semaphore(1)
+        self._tool_catalog = tool_catalog
         self._agents = [
-            BaseAgent(a, repo, self._llm_semaphore) for a in agents if a.agent_config
+            BaseAgent(
+                a,
+                repo,
+                self._llm_semaphore,
+                tool_catalog=self._tool_catalog,
+            )
+            for a in agents
+            if a.agent_config
         ]
         self._ws_manager = ws_manager
         self._templates = templates
@@ -33,7 +43,12 @@ class DiscussionEngine:
     def reload_agents(self, agents: list[User]) -> None:
         """Replace in-memory agent instances after a model refresh."""
         self._agents = [
-            BaseAgent(a, self._repo, self._llm_semaphore)
+            BaseAgent(
+                a,
+                self._repo,
+                self._llm_semaphore,
+                tool_catalog=self._tool_catalog,
+            )
             for a in agents
             if a.agent_config
         ]

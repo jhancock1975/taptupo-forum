@@ -18,23 +18,7 @@
     <div id="posts" class="post-list">
         {% for post in posts %}
             {% set author = authors.get(post.author_id) %}
-            <div class="post {% if author and author.is_agent %}post-agent{% else %}post-human{% endif %}" id="post-{{ post.post_id }}">
-                <div class="post-header">
-                    <span class="post-author {% if author and author.is_agent %}agent-name{% endif %}">
-                        {% if author and author.is_agent %}
-                            <span class="agent-avatar" style="background: hsl({{ (author.username|length * 47) % 360 }}, 60%, 50%)">{{ author.username[0] }}</span>
-                        {% endif %}
-                        {{ author.username if author else 'Unknown' }}
-                    </span>
-                    {% if author and author.is_agent and author.agent_config %}
-                        <span class="model-badge">{{ author.agent_config.model_id.split('/')[0] }}</span>
-                    {% endif %}
-                    <time class="post-time" datetime="{{ post.created_at.isoformat() }}">
-                        {{ post.created_at.strftime('%b %d, %Y %H:%M UTC') }}
-                    </time>
-                </div>
-                <div class="post-content">{{ post.content }}</div>
-            </div>
+            {% include "fragments/post.html" %}
         {% endfor %}
     </div>
 </div>

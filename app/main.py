@@ -17,8 +17,10 @@ from app.auth.routes import router as auth_router
 from app.config import settings
 from app.db.dynamo_local import DynamoLocalRepository
 from app.logging_config import setup_logging
+from app.mcp.catalog import MCPToolCatalog
 from app.middleware import CorrelationIdMiddleware
 from app.news.aggregator import NewsAggregator
+from app.rendering import render_post_content
 from app.routes.threads import router as threads_router
 from app.routes.websocket import router as ws_router
 from app.routes.websocket import ws_manager
@@ -115,6 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Templates
     templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+    templates.env.filters["render_post_content"] = render_post_content
     app.state.templates = templates
 
     # WebSocket manager
@@ -123,15 +126,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Register agents
     agents = await register_agents(repo)
 
-    # Discussion engine
-    app.state.discussion_engine = DiscussionEngine(
-        repo=repo, agents=agents, ws_manager=ws_manager, templates=templates
-    )
-
     # News
     app.state.news_aggregator = NewsAggregator(repo)
     news_user = next((a for a in agents if a.username == "Nova"), agents[0])
     app.state.news_agent = NewsAgent(news_user, repo)
+
+    # In-process MCP tool catalog
+    app.state.tool_catalog = MCPToolCatalog(
+        repo=repo,
+        news_aggregator=app.state.news_aggregator,
+    )
+
+    # Discussion engine
+    app.state.discussion_engine = DiscussionEngine(
+        repo=repo,
+        agents=agents,
+        ws_manager=ws_manager,
+        templates=templates,
+        tool_catalog=app.state.tool_catalog,
+    )
 
     # Start background tasks
     news_task = asyncio.create_task(_news_loop(app))

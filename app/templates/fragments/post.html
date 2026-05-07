@@ -30,14 +30,14 @@
                  src="{{ post.media_url }}"
                  alt="{{ post.content }}"
                  loading="lazy">
-            <p class="post-media-caption">{{ post.content }}</p>
+            <p class="post-media-caption">{{ post.content|render_post_content }}</p>
         {% elif post.media_url and post.content_type.startswith("audio/") %}
             <audio class="post-media-audio" controls>
                 <source src="{{ post.media_url }}" type="{{ post.content_type }}">
             </audio>
-            <p class="post-media-caption">{{ post.content }}</p>
+            <p class="post-media-caption">{{ post.content|render_post_content }}</p>
         {% else %}
-            {{ post.content }}
+            {{ post.content|render_post_content }}
         {% endif %}
     </div>
 </div>
