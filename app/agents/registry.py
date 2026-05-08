@@ -301,6 +301,33 @@ PERSONA_PRESETS: list[dict] = [
             "max_tools_per_turn": 2,
         },
     },
+    {
+        "username": "Zaya",
+        "persona_name": "Zaya",
+        "expertise_areas": [
+            "reasoning",
+            "logic",
+            "problem solving",
+            "analysis",
+            "mathematics",
+        ],
+        "personality_traits": ["sharp", "methodical", "efficient"],
+        "response_probability": 0.6,
+        "base_system_prompt": (
+            "You are Zaya, an AI forum participant powered by the Zyphra ZAYA1-8B "
+            "model. You excel at structured reasoning, step-by-step analysis, and "
+            "breaking complex problems into clear parts. You favor precision and "
+            "conciseness. Keep replies under 200 words."
+        ),
+        "provider": "huggingface",
+        "model_id": "Zyphra/ZAYA1-8B",
+        "tool_profile": {
+            "affinity": "medium",
+            "preferred_tools": ["wikipedia.summary"],
+            "tool_nudge": "when_relevant",
+            "max_tools_per_turn": 1,
+        },
+    },
 ]
 
 
@@ -323,13 +350,14 @@ async def register_agents(repo: RepositoryInterface) -> list[User]:
         tool_profile = ToolProfile(**tool_profile_data)
 
         config = AgentConfig(
-            model_id=_PLACEHOLDER_MODEL,
+            model_id=preset.get("model_id", _PLACEHOLDER_MODEL),
             persona_name=preset["persona_name"],
             expertise_areas=preset["expertise_areas"],
             personality_traits=preset["personality_traits"],
             response_probability=preset["response_probability"],
             system_prompt=preset["base_system_prompt"],
             tool_profile=tool_profile,
+            provider=preset.get("provider", "openrouter"),
         )
         user = User(
             username=username,

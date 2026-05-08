@@ -1041,6 +1041,7 @@ async def test_register_agents_reuses_existing_and_creates_missing(
         "Forge",
         "Delta",
         "Maven",
+        "Zaya",
     ]
     assert all(
         user.password_hash == f"hashed:{user.username}_agent_secret" for user in created
