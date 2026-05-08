@@ -188,32 +188,34 @@ class BaseAgent:
                 related.append((t, posts[:_MAX_POSTS_PER_RELATED_THREAD]))
         return related
 
-    def _parse_tool_request(self, text: str) -> tuple[str, dict[str, Any]] | None:
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        if not lines:
-            return None
-        last = lines[-1]
-        match = _TOOL_REQUEST_RE.match(last)
-        if not match:
-            return None
-
-        tool_name = match.group(1)
-        raw_args = match.group(2)
-        try:
-            parsed = json.loads(raw_args)
-        except json.JSONDecodeError:
-            logger.warning(
-                "tool_request_json_invalid",
-                agent=self.user.username,
-                tool=tool_name,
-            )
-            parsed = {}
-
-        args: dict[str, Any] = {}
-        if isinstance(parsed, dict):
-            for key, value in parsed.items():
-                args[str(key)] = value
-        return tool_name, args
+    def _parse_tool_requests(
+        self, text: str, max_tools: int = 2
+    ) -> list[tuple[str, dict[str, Any]]]:
+        results: list[tuple[str, dict[str, Any]]] = []
+        for line in text.splitlines():
+            line = line.strip()
+            match = _TOOL_REQUEST_RE.match(line)
+            if not match:
+                continue
+            tool_name = match.group(1)
+            raw_args = match.group(2)
+            try:
+                parsed = json.loads(raw_args)
+            except json.JSONDecodeError:
+                logger.warning(
+                    "tool_request_json_invalid",
+                    agent=self.user.username,
+                    tool=tool_name,
+                )
+                parsed = {}
+            args: dict[str, Any] = {}
+            if isinstance(parsed, dict):
+                for key, value in parsed.items():
+                    args[str(key)] = value
+            results.append((tool_name, args))
+            if len(results) >= max_tools:
+                break
+        return results
 
     @staticmethod
     def _strip_tool_request_lines(text: str) -> str:
@@ -321,7 +323,8 @@ class BaseAgent:
                     snippet = rp.content[:_MAX_SNIPPET_CHARS].replace("\n", " ")
                     conversation_lines.append(f"    {rel_name}: {snippet}")
 
-        if self._tool_catalog is not None:
+        tool_profile = self.config.tool_profile
+        if self._tool_catalog is not None and tool_profile.affinity != "none":
             tool_list_response = await self._tool_catalog.invoke("meta.list_tools", {})
             tool_result = tool_list_response.get("result", {})
             raw_tools = tool_result.get("tools", []) if isinstance(tool_result, dict) else []
@@ -330,20 +333,41 @@ class BaseAgent:
                 tool_context = "\n".join(
                     [thread.title, post.content, *(p.content for p in posts[-3:])]
                 )
-                suggested_tools = self._tool_catalog.suggest_tools(tool_context)
-                conversation_lines.append("")
-                conversation_lines.append(
-                    "Use one relevant MCP tool when it helps verify factual, current, "
-                    "or external claims before replying."
+                recent_content = [p.content for p in posts[-5:]]
+                suggested_tools = self._tool_catalog.suggest_tools(
+                    tool_context,
+                    preferred_tools=tool_profile.preferred_tools,
+                    recent_posts=recent_content,
                 )
+                conversation_lines.append("")
+
+                max_tools = tool_profile.max_tools_per_turn
+                if tool_profile.tool_nudge == "always":
+                    conversation_lines.append(
+                        "You should use MCP tools to verify factual, current, "
+                        "or external claims before replying."
+                    )
+                elif tool_profile.tool_nudge == "rarely":
+                    conversation_lines.append(
+                        "You may use an MCP tool only if you really need "
+                        "external data to answer accurately."
+                    )
+                else:
+                    conversation_lines.append(
+                        "Use a relevant MCP tool when it helps verify factual, current, "
+                        "or external claims before replying."
+                    )
+
                 if suggested_tools:
                     conversation_lines.append(
                         "Strong tool candidates for this thread:"
                     )
                     for tool_name in suggested_tools:
                         conversation_lines.append(f"- {tool_name}")
+
                 conversation_lines.append(
-                    "If you need one tool call, end your draft with exactly one line in this format:"
+                    f"You may request up to {max_tools} tools. "
+                    "Put each on its own line at the end:"
                 )
                 conversation_lines.append(
                     'TOOL_REQUEST: <tool_name> | {"arg": "value"}'
@@ -378,8 +402,8 @@ class BaseAgent:
 
         conversation_lines.append("")
         conversation_lines.append(
-            "Write your reply to this discussion. Prefer one relevant tool call over "
-            "guessing, but if no tool is useful, reply normally."
+            "Write your reply to this discussion. Use a relevant tool call "
+            "if helpful, but if no tool is useful, reply normally."
         )
 
         conversation: list[dict[str, str]] = [
@@ -434,14 +458,34 @@ class BaseAgent:
             return None
 
         if self._tool_catalog is not None:
-            tool_request = self._parse_tool_request(reply_text)
-            if tool_request is not None:
-                tool_name, tool_args = tool_request
-                tool_response = await self._tool_catalog.invoke(tool_name, tool_args)
+            max_tools = self.config.tool_profile.max_tools_per_turn
+            tool_requests = self._parse_tool_requests(reply_text, max_tools=max_tools)
+
+            if tool_requests:
+                tool_coros = [
+                    self._tool_catalog.invoke(name, args)
+                    for name, args in tool_requests
+                ]
+                tool_responses = await asyncio.gather(
+                    *tool_coros, return_exceptions=True
+                )
+
+                results_parts: list[str] = []
+                for (name, _), response in zip(tool_requests, tool_responses):
+                    if isinstance(response, Exception):
+                        results_parts.append(
+                            f"Tool '{name}' failed: {type(response).__name__}: {response}"
+                        )
+                    else:
+                        results_parts.append(
+                            f"Tool '{name}' response:\n"
+                            f"{json.dumps(response, ensure_ascii=True)}"
+                        )
+
                 follow_up_prompt = (
-                    f"You requested tool '{tool_name}'. Here is the JSON tool response:\n"
-                    f"{json.dumps(tool_response, ensure_ascii=True)}\n"
-                    "Write the final forum reply using this result when helpful. "
+                    "You requested tools. Here are the results:\n"
+                    + "\n\n".join(results_parts)
+                    + "\nWrite the final forum reply using these results when helpful. "
                     "Do not mention using a tool, checking a tool, internal reasoning, "
                     "or any draft/planning language in the final reply."
                 )
@@ -449,15 +493,41 @@ class BaseAgent:
                     *conversation,
                     {"role": "user", "content": follow_up_prompt},
                 ]
-                final_reply = await self._call_llm(follow_up_messages)
-                if not final_reply:
+                follow_up_reply = await self._call_llm(follow_up_messages)
+
+                if follow_up_reply is None:
                     logger.warning(
                         "tool_follow_up_failed",
                         agent=self.user.username,
-                        tool=tool_name,
+                        tools=[name for name, _ in tool_requests],
                     )
                     return None
-                reply_text = final_reply
+
+                chained_requests = self._parse_tool_requests(
+                    follow_up_reply, max_tools=1
+                )
+                if chained_requests:
+                    chain_name, chain_args = chained_requests[0]
+                    chain_response = await self._tool_catalog.invoke(
+                        chain_name, chain_args
+                    )
+                    chain_prompt = (
+                        f"Chained tool '{chain_name}' response:\n"
+                        f"{json.dumps(chain_response, ensure_ascii=True)}\n"
+                        "Write the final forum reply. "
+                        "Do not mention tools or internal process."
+                    )
+                    chain_messages = [
+                        *follow_up_messages,
+                        {"role": "user", "content": chain_prompt},
+                    ]
+                    final_reply = await self._call_llm(chain_messages)
+                    if final_reply:
+                        reply_text = final_reply
+                    else:
+                        reply_text = self._strip_tool_request_lines(follow_up_reply)
+                else:
+                    reply_text = follow_up_reply
 
         cleaned_reply = self._strip_tool_request_lines(reply_text)
         if not cleaned_reply:

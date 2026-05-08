@@ -94,7 +94,13 @@ class FakeToolCatalog:
             return {"ok": True, "tool": tool_name, "result": {"tools": []}}
         return {"ok": False, "tool": tool_name, "error": "unknown_tool"}
 
-    def suggest_tools(self, text: str, max_tools: int = 2) -> list[str]:
+    def suggest_tools(
+        self,
+        text: str,
+        preferred_tools: list[str] | None = None,
+        recent_posts: list[str] | None = None,
+        max_tools: int = 2,
+    ) -> list[str]:
         _ = text
         return self.suggestions[:max_tools]
 
@@ -1346,3 +1352,45 @@ def test_maven_has_high_affinity():
     assert maven["tool_profile"]["affinity"] == "high"
     assert maven["tool_profile"]["tool_nudge"] == "always"
     assert maven["tool_profile"]["max_tools_per_turn"] == 2
+
+
+# ── Multi-tool parsing ────────────────────────────────────────────────────────
+
+
+def test_parse_tool_requests_multiple():
+    agent = BaseAgent(agent_user(), AgentRepo())  # type: ignore[arg-type]
+    text = (
+        "Let me check both sources.\n"
+        'TOOL_REQUEST: hn.top_stories | {"limit": 3}\n'
+        'TOOL_REQUEST: wikipedia.summary | {"query": "AI safety"}'
+    )
+    result = agent._parse_tool_requests(text)
+    assert len(result) == 2
+    assert result[0] == ("hn.top_stories", {"limit": 3})
+    assert result[1] == ("wikipedia.summary", {"query": "AI safety"})
+
+
+def test_parse_tool_requests_single():
+    agent = BaseAgent(agent_user(), AgentRepo())  # type: ignore[arg-type]
+    text = 'Some thoughts.\nTOOL_REQUEST: weather.current | {"location": "NYC"}'
+    result = agent._parse_tool_requests(text)
+    assert len(result) == 1
+    assert result[0] == ("weather.current", {"location": "NYC"})
+
+
+def test_parse_tool_requests_none():
+    agent = BaseAgent(agent_user(), AgentRepo())  # type: ignore[arg-type]
+    text = "Just a normal reply with no tool requests."
+    result = agent._parse_tool_requests(text)
+    assert result == []
+
+
+def test_parse_tool_requests_caps_at_max():
+    agent = BaseAgent(agent_user(), AgentRepo())  # type: ignore[arg-type]
+    text = (
+        'TOOL_REQUEST: hn.top_stories | {"limit": 3}\n'
+        'TOOL_REQUEST: wikipedia.summary | {"query": "AI"}\n'
+        'TOOL_REQUEST: weather.current | {"location": "NYC"}'
+    )
+    result = agent._parse_tool_requests(text, max_tools=2)
+    assert len(result) == 2
