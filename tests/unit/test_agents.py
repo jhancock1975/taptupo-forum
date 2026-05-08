@@ -1394,3 +1394,266 @@ def test_parse_tool_requests_caps_at_max():
     )
     result = agent._parse_tool_requests(text, max_tools=2)
     assert len(result) == 2
+
+
+# ── Integration: multi-tool and chaining ──────────────────────────────────────
+
+
+@pytest.mark.anyio
+async def test_maybe_respond_executes_multiple_tools_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = agent_user(
+        agent_config=agent_config(
+            tool_profile=ToolProfile(
+                affinity="high", max_tools_per_turn=2, tool_nudge="always"
+            ),
+        )
+    )
+    human = User(user_id="human", username="Alice")
+    repo = AgentRepo()
+    repo.thread = Thread(thread_id="t1", title="Tech news", created_by="human")
+    repo.posts = [Post(thread_id="t1", author_id="human", content="What's trending?")]
+    repo.users["human"] = human
+
+    tool_catalog = FakeToolCatalog(
+        responses={
+            "meta.list_tools": {
+                "ok": True,
+                "tool": "meta.list_tools",
+                "result": {
+                    "tools": [
+                        {"name": "hn.top_stories", "description": "HN stories."},
+                        {"name": "wikipedia.summary", "description": "Wiki summary."},
+                    ]
+                },
+            },
+            "hn.top_stories": {
+                "ok": True,
+                "tool": "hn.top_stories",
+                "result": {"stories": [{"title": "AI breakthrough"}], "count": 1},
+            },
+            "wikipedia.summary": {
+                "ok": True,
+                "tool": "wikipedia.summary",
+                "result": {"title": "AI", "summary": "Artificial intelligence..."},
+            },
+        }
+    )
+    agent = BaseAgent(user, repo, tool_catalog=tool_catalog)  # type: ignore[arg-type]
+    monkeypatch.setattr(agent, "_should_respond", lambda: True)
+
+    call_count = 0
+
+    async def mock_llm(messages: list[dict[str, str]]) -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return (
+                "Let me check multiple sources.\n"
+                'TOOL_REQUEST: hn.top_stories | {"limit": 3}\n'
+                'TOOL_REQUEST: wikipedia.summary | {"query": "AI"}'
+            )
+        return "AI is trending on HN and here's what Wikipedia says about it."
+
+    monkeypatch.setattr(agent, "_call_llm", mock_llm)
+
+    parent = Post(thread_id="t1", author_id="human", content="What's trending?")
+    result = await agent.maybe_respond("t1", parent)
+
+    assert result is not None
+    assert "AI is trending" in result.content
+    assert call_count == 2
+    tool_calls = [name for name, _ in tool_catalog.calls]
+    assert "hn.top_stories" in tool_calls
+    assert "wikipedia.summary" in tool_calls
+
+
+@pytest.mark.anyio
+async def test_maybe_respond_sequential_chaining(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = agent_user(
+        agent_config=agent_config(
+            tool_profile=ToolProfile(
+                affinity="high", max_tools_per_turn=2, tool_nudge="always"
+            ),
+        )
+    )
+    human = User(user_id="human", username="Alice")
+    repo = AgentRepo()
+    repo.thread = Thread(thread_id="t1", title="Tech deep dive", created_by="human")
+    repo.posts = [
+        Post(thread_id="t1", author_id="human", content="Tell me about top stories")
+    ]
+    repo.users["human"] = human
+
+    tool_catalog = FakeToolCatalog(
+        responses={
+            "meta.list_tools": {
+                "ok": True,
+                "tool": "meta.list_tools",
+                "result": {
+                    "tools": [
+                        {"name": "hn.top_stories", "description": "HN stories."},
+                        {"name": "wikipedia.summary", "description": "Wiki."},
+                    ]
+                },
+            },
+            "hn.top_stories": {
+                "ok": True,
+                "tool": "hn.top_stories",
+                "result": {"stories": [{"title": "Quantum computing breakthrough"}]},
+            },
+            "wikipedia.summary": {
+                "ok": True,
+                "tool": "wikipedia.summary",
+                "result": {"title": "Quantum computing", "summary": "Uses qubits..."},
+            },
+        }
+    )
+    agent = BaseAgent(user, repo, tool_catalog=tool_catalog)  # type: ignore[arg-type]
+    monkeypatch.setattr(agent, "_should_respond", lambda: True)
+
+    call_count = 0
+
+    async def mock_llm(messages: list[dict[str, str]]) -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return 'TOOL_REQUEST: hn.top_stories | {"limit": 1}'
+        elif call_count == 2:
+            return 'TOOL_REQUEST: wikipedia.summary | {"query": "quantum computing"}'
+        return "Quantum computing is trending! Here's what it means..."
+
+    monkeypatch.setattr(agent, "_call_llm", mock_llm)
+
+    parent = Post(
+        thread_id="t1", author_id="human", content="Tell me about top stories"
+    )
+    result = await agent.maybe_respond("t1", parent)
+
+    assert result is not None
+    assert "Quantum computing" in result.content
+    assert call_count == 3
+    tool_calls = [name for name, _ in tool_catalog.calls]
+    assert "hn.top_stories" in tool_calls
+    assert "wikipedia.summary" in tool_calls
+
+
+@pytest.mark.anyio
+async def test_maybe_respond_skips_tools_for_none_affinity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = agent_user(
+        agent_config=agent_config(
+            tool_profile=ToolProfile(affinity="none", max_tools_per_turn=0),
+        )
+    )
+    human = User(user_id="human", username="Alice")
+    repo = AgentRepo()
+    repo.thread = Thread(thread_id="t1", title="Weather chat", created_by="human")
+    repo.posts = [
+        Post(thread_id="t1", author_id="human", content="what's the weather?")
+    ]
+    repo.users["human"] = human
+
+    tool_catalog = FakeToolCatalog(
+        responses={
+            "meta.list_tools": {
+                "ok": True,
+                "tool": "meta.list_tools",
+                "result": {
+                    "tools": [
+                        {"name": "weather.current", "description": "Get weather."}
+                    ]
+                },
+            }
+        }
+    )
+    agent = BaseAgent(user, repo, tool_catalog=tool_catalog)  # type: ignore[arg-type]
+    monkeypatch.setattr(agent, "_should_respond", lambda: True)
+    captured: dict[str, list[dict[str, str]]] = {}
+
+    async def reply(messages: list[dict[str, str]]) -> str:
+        captured["messages"] = messages
+        return "I don't have weather data."
+
+    monkeypatch.setattr(agent, "_call_llm", reply)
+
+    parent = Post(thread_id="t1", author_id="human", content="weather?")
+    result = await agent.maybe_respond("t1", parent)
+
+    assert result is not None
+    prompt_text = captured["messages"][1]["content"]
+    assert "TOOL_REQUEST" not in prompt_text
+    assert "Available tools" not in prompt_text
+
+
+@pytest.mark.anyio
+async def test_maybe_respond_nudge_language_varies_by_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool_catalog = FakeToolCatalog(
+        responses={
+            "meta.list_tools": {
+                "ok": True,
+                "tool": "meta.list_tools",
+                "result": {
+                    "tools": [
+                        {"name": "weather.current", "description": "Weather."}
+                    ]
+                },
+            }
+        }
+    )
+
+    human = User(user_id="human", username="Alice")
+    repo = AgentRepo()
+    repo.thread = Thread(thread_id="t1", title="Chat", created_by="human")
+    repo.posts = [Post(thread_id="t1", author_id="human", content="hello")]
+    repo.users["human"] = human
+
+    # Test "always" nudge
+    user_always = agent_user(
+        agent_config=agent_config(
+            tool_profile=ToolProfile(
+                affinity="high", tool_nudge="always", max_tools_per_turn=2
+            ),
+        )
+    )
+    agent = BaseAgent(user_always, repo, tool_catalog=tool_catalog)  # type: ignore[arg-type]
+    monkeypatch.setattr(agent, "_should_respond", lambda: True)
+    captured: dict[str, str] = {}
+
+    async def reply(messages: list[dict[str, str]]) -> str:
+        captured["prompt"] = messages[1]["content"]
+        return "Reply."
+
+    monkeypatch.setattr(agent, "_call_llm", reply)
+    parent = Post(thread_id="t1", author_id="human", content="hello")
+    await agent.maybe_respond("t1", parent)
+
+    assert "up to 2 tools" in captured["prompt"]
+    assert "should use" in captured["prompt"]
+
+    # Test "rarely" nudge
+    user_rarely = agent_user(
+        agent_config=agent_config(
+            tool_profile=ToolProfile(
+                affinity="low", tool_nudge="rarely", max_tools_per_turn=1
+            ),
+        )
+    )
+    agent2 = BaseAgent(user_rarely, repo, tool_catalog=tool_catalog)  # type: ignore[arg-type]
+    monkeypatch.setattr(agent2, "_should_respond", lambda: True)
+    captured2: dict[str, str] = {}
+
+    async def reply2(messages: list[dict[str, str]]) -> str:
+        captured2["prompt"] = messages[1]["content"]
+        return "Reply."
+
+    monkeypatch.setattr(agent2, "_call_llm", reply2)
+    await agent2.maybe_respond("t1", parent)
+
+    assert "only if you really need" in captured2["prompt"]
