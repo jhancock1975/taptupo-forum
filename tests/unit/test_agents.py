@@ -1042,6 +1042,9 @@ async def test_register_agents_reuses_existing_and_creates_missing(
         "Delta",
         "Maven",
         "Zaya",
+        "Flux",
+        "Canvas",
+        "Tempo",
     ]
     assert all(
         user.password_hash == f"hashed:{user.username}_agent_secret" for user in created
@@ -1658,3 +1661,156 @@ async def test_maybe_respond_nudge_language_varies_by_profile(
     await agent2.maybe_respond("t1", parent)
 
     assert "only if you really need" in captured2["prompt"]
+
+
+# ── Media generation agents ───────────────────────────────────────────────────
+
+
+def test_media_agents_in_registry():
+    """Verify Flux, Canvas, and Tempo agents are in PERSONA_PRESETS."""
+    names = [p["username"] for p in registry.PERSONA_PRESETS]
+    assert "Flux" in names
+    assert "Canvas" in names
+    assert "Tempo" in names
+
+
+def test_flux_agent_config():
+    preset = next(p for p in registry.PERSONA_PRESETS if p["username"] == "Flux")
+    assert preset["provider"] == "huggingface"
+    assert preset["model_id"] == "black-forest-labs/FLUX.1-schnell"
+    assert preset["output_modality"] == "image"
+    assert preset["tool_profile"]["affinity"] == "none"
+
+
+def test_canvas_agent_config():
+    preset = next(p for p in registry.PERSONA_PRESETS if p["username"] == "Canvas")
+    assert preset["provider"] == "huggingface"
+    assert preset["model_id"] == "stabilityai/stable-diffusion-xl-base-1.0"
+    assert preset["output_modality"] == "image"
+
+
+def test_tempo_agent_config():
+    preset = next(p for p in registry.PERSONA_PRESETS if p["username"] == "Tempo")
+    assert preset["provider"] == "huggingface"
+    assert preset["model_id"] == "facebook/musicgen-small"
+    assert preset["output_modality"] == "audio"
+
+
+@pytest.mark.anyio
+async def test_generate_media_huggingface_image(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HuggingFace image generation returns raw bytes from the API."""
+    monkeypatch.setattr("app.config.settings.huggingface_api_key", "test-key")
+    monkeypatch.setattr("app.config.settings.openrouter_api_key", "")
+
+    user = agent_user(
+        agent_config=agent_config(
+            provider="huggingface",
+            model_id="black-forest-labs/FLUX.1-schnell",
+            output_modality="image",
+        )
+    )
+    agent = BaseAgent(user, AgentRepo())  # type: ignore[arg-type]
+
+    fake_image_bytes = b"\x89PNG\r\n\x1a\nfake-image-data"
+
+    class FakeResponse:
+        content = fake_image_bytes
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+    class FakeClient:
+        async def post(self, url, json=None, headers=None):
+            return FakeResponse()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    monkeypatch.setattr("app.agents.base_agent.httpx.AsyncClient", lambda **kw: FakeClient())
+    monkeypatch.setattr("app.agents.base_agent.POST_REQUEST_DELAY_SECONDS", 0)
+
+    result = await agent._generate_media("a futuristic city")
+    assert result is not None
+    raw, mime = result
+    assert raw == fake_image_bytes
+    assert mime == "image/png"
+
+
+@pytest.mark.anyio
+async def test_generate_media_huggingface_audio(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HuggingFace audio generation returns raw bytes from the API."""
+    monkeypatch.setattr("app.config.settings.huggingface_api_key", "test-key")
+    monkeypatch.setattr("app.config.settings.openrouter_api_key", "")
+
+    user = agent_user(
+        agent_config=agent_config(
+            provider="huggingface",
+            model_id="facebook/musicgen-small",
+            output_modality="audio",
+        )
+    )
+    agent = BaseAgent(user, AgentRepo())  # type: ignore[arg-type]
+
+    fake_audio_bytes = b"ID3\x04\x00fake-audio-data"
+
+    class FakeResponse:
+        content = fake_audio_bytes
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+    class FakeClient:
+        async def post(self, url, json=None, headers=None):
+            return FakeResponse()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+    monkeypatch.setattr("app.agents.base_agent.httpx.AsyncClient", lambda **kw: FakeClient())
+    monkeypatch.setattr("app.agents.base_agent.POST_REQUEST_DELAY_SECONDS", 0)
+
+    result = await agent._generate_media("upbeat electronic music")
+    assert result is not None
+    raw, mime = result
+    assert raw == fake_audio_bytes
+    assert mime == "audio/mpeg"
+
+
+@pytest.mark.anyio
+async def test_generate_media_huggingface_no_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Returns None when HuggingFace API key is missing."""
+    monkeypatch.setattr("app.config.settings.huggingface_api_key", "")
+
+    user = agent_user(
+        agent_config=agent_config(
+            provider="huggingface",
+            model_id="black-forest-labs/FLUX.1-schnell",
+            output_modality="image",
+        )
+    )
+    agent = BaseAgent(user, AgentRepo())  # type: ignore[arg-type]
+    result = await agent._generate_media("test prompt")
+    assert result is None
+
+
+@pytest.mark.anyio
+async def test_generate_media_unsupported_modality(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Returns None for unsupported output modality."""
+    monkeypatch.setattr("app.config.settings.openrouter_api_key", "test-key")
+
+    user = agent_user(
+        agent_config=agent_config(
+            output_modality="video",
+        )
+    )
+    agent = BaseAgent(user, AgentRepo())  # type: ignore[arg-type]
+    result = await agent._generate_media("test prompt")
+    assert result is None

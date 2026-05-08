@@ -23,6 +23,7 @@ logger = structlog.get_logger()
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images/generations"
 HF_INFERENCE_BASE = "https://router.huggingface.co/hf-inference/v1"
+HF_INFERENCE_MODELS = "https://api-inference.huggingface.co/models"
 
 MAX_RETRIES = 5
 POST_REQUEST_DELAY_SECONDS = 12.0
@@ -227,16 +228,13 @@ class BaseAgent:
         return "\n".join(cleaned).strip()
 
     async def _generate_media(self, prompt: str) -> tuple[bytes, str] | None:
-        """Call OpenRouter images/generations endpoint and return (data, mime_type).
+        """Generate media (image or audio) and return (raw_bytes, mime_type).
 
+        Routes to the correct provider/endpoint based on agent config.
         Returns None if the call fails or the API key is missing.
         """
-        if not settings.openrouter_api_key:
-            return None
-
         output_mod = self.config.output_modality
-        if output_mod != "image":
-            # Only image generation is currently handled via this path
+        if output_mod not in _MODALITY_MIME:
             logger.warning(
                 "unsupported_output_modality",
                 agent=self.user.username,
@@ -244,6 +242,15 @@ class BaseAgent:
             )
             return None
 
+        if self.config.provider == "huggingface":
+            return await self._generate_media_huggingface(prompt, output_mod)
+        return await self._generate_media_openrouter(prompt, output_mod)
+
+    async def _generate_media_openrouter(
+        self, prompt: str, output_mod: str
+    ) -> tuple[bytes, str] | None:
+        if not settings.openrouter_api_key:
+            return None
         payload = {
             "model": self.config.model_id,
             "prompt": prompt,
@@ -273,6 +280,31 @@ class BaseAgent:
                 return raw, mime
             except Exception:
                 logger.exception("media_generation_failed", agent=self.user.username)
+                return None
+
+    async def _generate_media_huggingface(
+        self, prompt: str, output_mod: str
+    ) -> tuple[bytes, str] | None:
+        if not settings.huggingface_api_key:
+            return None
+        url = f"{HF_INFERENCE_MODELS}/{self.config.model_id}"
+        headers = {
+            "Authorization": f"Bearer {settings.huggingface_api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {"inputs": prompt}
+        async with self._llm_semaphore:
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    resp = await client.post(url, json=payload, headers=headers)
+                    resp.raise_for_status()
+                mime = _MODALITY_MIME.get(output_mod, "application/octet-stream")
+                await asyncio.sleep(POST_REQUEST_DELAY_SECONDS)
+                return resp.content, mime
+            except Exception:
+                logger.exception(
+                    "hf_media_generation_failed", agent=self.user.username
+                )
                 return None
 
     async def maybe_respond(self, thread_id: str, post: Post) -> Post | None:
